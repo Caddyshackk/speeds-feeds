@@ -565,8 +565,8 @@ function updateTapInfo() {
         [tapDiameter, tpi] = tapSizeSelect.value.split(',').map(parseFloat);
     }
     
-    // Calculate tap drill size (75% thread depth)
-    const tapDrill = tapDiameter - (1.2990 / tpi);
+    // Calculate tap drill size (85% thread depth)
+    const tapDrill = tapDiameter - (1.0825 / tpi);
     
     // Get recommended speed based on material and tap type
     const speedFactor = tapSpeedFactors[workMaterial][tapType];
