@@ -251,8 +251,8 @@ function calculate() {
         // Feed Rate for tapping: IPM = RPM / TPI
         feedRate = rpm / tpi;
 
-        // Calculate tap drill size (75% thread depth)
-        const tapDrill = tapDiameter - (1.2990 / tpi);
+        // Calculate tap drill size (85% thread depth)
+        const tapDrill = tapDiameter - (1.0825 / tpi);
         
         // Display tap drill size
         document.getElementById('tapDrillValue').textContent = `${tapDrill.toFixed(4)}"`;
