@@ -829,3 +829,30 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* CAD link button */
+.machine-btn-cad {
+    text-decoration: none;
+    border-color: rgba(0, 255, 136, 0.3);
+    position: relative;
+}
+.machine-btn-cad:hover {
+    border-color: rgba(0, 255, 136, 0.7);
+    background: rgba(0, 255, 136, 0.08);
+    color: #00ff88;
+}
+.machine-btn-cad .machine-icon,
+.machine-btn-cad .machine-name {
+    color: #00ff88;
+}
+.cad-badge {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    font-size: 9px;
+    color: rgba(0, 255, 136, 0.5);
+    line-height: 1;
+}
+.machine-btn-cad:hover .cad-badge {
+    color: rgba(0, 255, 136, 0.9);
+}
