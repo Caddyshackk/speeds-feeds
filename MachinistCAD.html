@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MachinistCAD</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg-app: #14161b;
+  --bg-toolbar: #1c1f26;
+  --bg-panel: #1c1f26;
+  --bg-canvas: #0e1014;
+  --bg-statusbar: #12141a;
+  --border: #2a2d38;
+  --text-primary: #d0d8e8;
+  --text-secondary: #7a8299;
+  --text-muted: #4a5068;
+  --accent: #4a9eff;
+  --accent-dim: #1a3050;
+  --success: #3dd68c;
+  --warning: #f5a623;
+  --danger: #e85454;
+  --entity-color: #88c4ff;
+  --font-mono: 'Courier New', 'Consolas', monospace;
+  --font-ui: -apple-system, 'Segoe UI', system-ui, sans-serif;
+}
+body {
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Menu bar */
+#menubar {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  background: var(--bg-toolbar);
+  border-bottom: 1px solid var(--border);
+  padding: 0 12px;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.app-logo {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--accent);
+  letter-spacing: 3px;
+  margin-right: 10px;
+  padding-right: 10px;
+  border-right: 1px solid var(--border);
+}
+.menu-sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
+.menu-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  white-space: nowrap;
+}
+.menu-btn:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+.menu-btn.on { color: var(--success); }
+.menu-btn.warn { color: var(--warning); }
+.menu-spacer { flex: 1; }
+
+/* Main layout */
+#main { display: flex; flex: 1; overflow: hidden; }
+
+/* Left toolbar */
+#toolbar {
+  width: 48px;
+  background: var(--bg-toolbar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.tool-btn {
+  width: 36px; height: 36px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: all 0.1s;
+  position: relative;
+}
+.tool-btn:hover { background: rgba(255,255,255,0.06); color: var(--text-primary); }
+.tool-btn.active { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(74,158,255,0.3); }
+.tool-btn svg { width: 18px; height: 18px; stroke-width: 1.5; }
+.tool-sep { width: 28px; height: 1px; background: var(--border); margin: 4px 0; }
+.tool-tip {
+  position: absolute;
+  left: 44px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #080a0e;
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 100;
+}
+.tool-btn:hover .tool-tip { opacity: 1; }
+
+/* Canvas */
+#canvas-container { flex: 1; position: relative; overflow: hidden; background: var(--bg-canvas); }
+#cad-canvas { display: block; cursor: crosshair; }
+
+/* Right panel */
+#panel {
+  width: 196px;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.panel-section { border-bottom: 1px solid var(--border); padding: 10px; }
+.panel-title {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.coord-display { font-family: var(--font-mono); font-size: 12px; line-height: 1.9; color: var(--text-secondary); }
+.coord-display span { color: var(--accent); }
+.snap-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.snap-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+.snap-dot.on { background: var(--success); }
+#snap-label { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); }
+#snap-label.on { color: var(--success); }
+
+#entity-list { flex: 1; overflow-y: auto; }
+.entity-item {
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(255,255,255,0.025);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-mono);
+}
+.entity-item:hover { background: rgba(255,255,255,0.03); color: var(--text-primary); }
+.entity-item.selected { background: var(--accent-dim); color: var(--accent); }
+.entity-icon { width: 13px; height: 13px; flex-shrink: 0; opacity: 0.7; }
+
+#props-section { padding: 10px; font-family: var(--font-mono); font-size: 11px; line-height: 1.8; }
+.prop-row { display: flex; justify-content: space-between; }
+.prop-key { color: var(--text-muted); }
+.prop-val { color: var(--text-primary); }
+
+/* Status bar */
+#statusbar {
+  height: 26px;
+  background: var(--bg-statusbar);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 20px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.st-item { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.st-val { color: var(--text-secondary); }
+.st-accent { color: var(--accent); }
+#st-hint { color: #3a4055; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div id="menubar">
+  <span class="app-logo">MACHINIST CAD</span>
+  <button class="menu-btn" onclick="newFile()">New</button>
+  <button class="menu-btn" onclick="exportDXF()">Export DXF</button>
+  <div class="menu-sep"></div>
+  <button class="menu-btn" onclick="undo()">↩ Undo</button>
+  <button class="menu-btn" onclick="redo()">↪ Redo</button>
+  <div class="menu-sep"></div>
+  <button class="menu-btn" onclick="zoomFit()">Fit View (F)</button>
+  <div class="menu-sep"></div>
+  <button class="menu-btn on" id="snap-btn" onclick="toggleSnap()">⊡ Snap ON</button>
+  <button class="menu-btn" id="ortho-btn" onclick="toggleOrtho()">⊾ Ortho OFF</button>
+  <div class="menu-spacer"></div>
+  <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">v0.1 — Teaching Edition</span>
+</div>
+
+<div id="main">
+  <div id="toolbar">
+    <button class="tool-btn active" id="tool-select" onclick="setTool('select')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 3l14 9-7 1-4 7L5 3z"/></svg>
+      <span class="tool-tip">Select (S)</span>
+    </button>
+    <div class="tool-sep"></div>
+    <button class="tool-btn" id="tool-line" onclick="setTool('line')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="4" y1="20" x2="20" y2="4"/></svg>
+      <span class="tool-tip">Line (L)</span>
+    </button>
+    <button class="tool-btn" id="tool-circle" onclick="setTool('circle')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="8"/></svg>
+      <span class="tool-tip">Circle (C)</span>
+    </button>
+    <button class="tool-btn" id="tool-arc" onclick="setTool('arc')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 20 Q4 4 20 4" fill="none"/></svg>
+      <span class="tool-tip">Arc (A)</span>
+    </button>
+    <button class="tool-btn" id="tool-rect" onclick="setTool('rect')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="6" width="16" height="12" rx="1"/></svg>
+      <span class="tool-tip">Rectangle (R)</span>
+    </button>
+    <div class="tool-sep"></div>
+    <button class="tool-btn" id="tool-dimension" onclick="setTool('dimension')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <line x1="4" y1="18" x2="20" y2="18"/>
+        <line x1="4" y1="14" x2="4" y2="22"/>
+        <line x1="20" y1="14" x2="20" y2="22"/>
+        <line x1="12" y1="8" x2="12" y2="16"/>
+      </svg>
+      <span class="tool-tip">Dimension (D)</span>
+    </button>
+    <div class="tool-sep"></div>
+    <button class="tool-btn" onclick="deleteSelected()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+      <span class="tool-tip">Delete (Del)</span>
+    </button>
+  </div>
+
+  <div id="canvas-container">
+    <canvas id="cad-canvas"></canvas>
+  </div>
+
+  <div id="panel">
+    <div class="panel-section">
+      <div class="panel-title">Cursor Position</div>
+      <div class="coord-display">
+        X &nbsp;<span id="cur-x">0.000</span>"<br>
+        Y &nbsp;<span id="cur-y">0.000</span>"
+      </div>
+      <div class="snap-row">
+        <div class="snap-dot" id="snap-dot"></div>
+        <span id="snap-label">no snap</span>
+      </div>
+    </div>
+
+    <div class="panel-section" style="padding-bottom:6px">
+      <div class="panel-title">Entities &nbsp;<span id="entity-count" style="color:var(--accent)">0</span></div>
+    </div>
+    <div id="entity-list"></div>
+
+    <div id="props-section" style="display:none;border-top:1px solid var(--border)">
+      <div class="panel-title" style="margin-bottom:6px">Properties</div>
+      <div id="props-container"></div>
+    </div>
+  </div>
+</div>
+
+<div id="statusbar">
+  <div class="st-item">TOOL: <span class="st-accent" id="st-tool">SELECT</span></div>
+  <div class="st-item">ZOOM: <span class="st-val" id="st-zoom">100%</span></div>
+  <div class="st-item">ENT: <span class="st-val" id="st-ent">0</span></div>
+  <span id="st-hint">Click to select · L=Line C=Circle A=Arc R=Rect D=Dim · Scroll=Zoom · Mid-click=Pan</span>
+</div>
+
+<script>
+// ================================================================
+//  MachinistCAD — 2D CAD Teaching Tool
+//  World coordinates in inches. Y-up (engineering convention).
+// ================================================================
+
+const canvas = document.getElementById('cad-canvas');
+const ctx = canvas.getContext('2d');
+
+// Camera
+let cam = { x: 0, y: 0, zoom: 96 };
+
+// Data
+let entities = [];
+let selectedIds = new Set();
+let undoStack = [];
+let redoStack = [];
+let nextId = 1;
+
+// Tools
+let currentTool = 'select';
+let ts = {}; // tool state
+let snapEnabled = true;
+let orthoEnabled = false;
+
+// Mouse
+let mouse = { wx: 0, wy: 0 };
+let snapPt = null;
+
+// Pan
+let panning = false;
+let panStart = { x: 0, y: 0 };
+let panCam0 = { x: 0, y: 0 };
+
+// ---- Transforms ----
+function w2s(wx, wy) { return { x: cam.x + wx * cam.zoom, y: cam.y - wy * cam.zoom }; }
+function s2w(sx, sy) { return { x: (sx - cam.x) / cam.zoom, y: -(sy - cam.y) / cam.zoom }; }
+
+// ---- Resize ----
+function resize() {
+  const c = document.getElementById('canvas-container');
+  canvas.width = c.clientWidth;
+  canvas.height = c.clientHeight;
+  if (cam.x === 0 && cam.y === 0) { cam.x = canvas.width / 2; cam.y = canvas.height / 2; }
+  render();
+}
+window.addEventListener('resize', resize);
+
+// ---- Grid ----
+function drawGrid() {
+  const w = canvas.width, h = canvas.height;
+  let minor = 0.1, major = 1.0;
+  if (cam.zoom < 18) { minor = 1; major = 10; }
+  else if (cam.zoom < 45) { minor = 0.5; major = 5; }
+  else if (cam.zoom > 280) { minor = 0.05; major = 0.5; }
+
+  const wlo = s2w(0, h), whi = s2w(w, 0);
+  const sx0 = Math.floor(wlo.x / minor) * minor;
+  const sy0 = Math.floor(wlo.y / minor) * minor;
+
+  ctx.save();
+  ctx.lineWidth = 0.5;
+
+  // Minor
+  ctx.strokeStyle = '#181b22';
+  for (let wx = sx0; wx <= whi.x + minor; wx += minor) {
+    if (Math.abs(wx % major) < 1e-9 || Math.abs(wx % major - major) < 1e-9) continue;
+    if (Math.abs(wx) < 1e-9) continue;
+    const px = cam.x + wx * cam.zoom;
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, h); ctx.stroke();
+  }
+  for (let wy = sy0; wy <= whi.y + minor; wy += minor) {
+    if (Math.abs(wy % major) < 1e-9 || Math.abs(wy % major - major) < 1e-9) continue;
+    if (Math.abs(wy) < 1e-9) continue;
+    const py = cam.y - wy * cam.zoom;
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(w, py); ctx.stroke();
+  }
+
+  // Major
+  ctx.strokeStyle = '#1e2230';
+  const mx0 = Math.floor(wlo.x / major) * major;
+  const my0 = Math.floor(wlo.y / major) * major;
+  for (let wx = mx0; wx <= whi.x + major; wx += major) {
+    if (Math.abs(wx) < 1e-9) continue;
+    const px = cam.x + wx * cam.zoom;
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, h); ctx.stroke();
+  }
+  for (let wy = my0; wy <= whi.y + major; wy += major) {
+    if (Math.abs(wy) < 1e-9) continue;
+    const py = cam.y - wy * cam.zoom;
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(w, py); ctx.stroke();
+  }
+
+  // Axes
+  ctx.strokeStyle = '#28304a';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cam.x, 0); ctx.lineTo(cam.x, h); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, cam.y); ctx.lineTo(w, cam.y); ctx.stroke();
+
+  // Axis labels
+  ctx.fillStyle = '#2e3550';
+  ctx.font = '10px Courier New';
+  ctx.fillText('+X', w - 18, cam.y - 5);
+  ctx.fillText('+Y', cam.x + 5, 14);
+  ctx.fillText('0,0', cam.x + 4, cam.y - 4);
+
+  // Ruler ticks on axes
+  ctx.strokeStyle = '#2e3550';
+  ctx.lineWidth = 0.5;
+  ctx.fillStyle = '#2e3550';
+  ctx.font = '9px Courier New';
+  ctx.textAlign = 'center';
+  for (let wx = mx0; wx <= whi.x + major; wx += major) {
+    const px = cam.x + wx * cam.zoom;
+    if (Math.abs(wx) > 0.001) {
+      ctx.beginPath(); ctx.moveTo(px, cam.y); ctx.lineTo(px, cam.y + 6); ctx.stroke();
+      if (cam.zoom > 30) ctx.fillText(wx.toFixed(0), px, cam.y + 16);
+    }
+  }
+  ctx.textAlign = 'right';
+  for (let wy = my0; wy <= whi.y + major; wy += major) {
+    const py = cam.y - wy * cam.zoom;
+    if (Math.abs(wy) > 0.001) {
+      ctx.beginPath(); ctx.moveTo(cam.x, py); ctx.lineTo(cam.x - 6, py); ctx.stroke();
+      if (cam.zoom > 30) ctx.fillText(wy.toFixed(0), cam.x - 9, py + 4);
+    }
+  }
+  ctx.textAlign = 'left';
+
+  ctx.restore();
+}
+
+// ---- Draw entity ----
+function drawEntity(e, sel) {
+  ctx.save();
+  ctx.strokeStyle = sel ? '#4a9eff' : '#6baed6';
+  ctx.lineWidth = sel ? 1.5 : 1;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  if (e.type === 'line') {
+    const p1 = w2s(e.x1, e.y1), p2 = w2s(e.x2, e.y2);
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+    if (sel) { drawHandle(e.x1,e.y1); drawHandle(e.x2,e.y2); drawHandle((e.x1+e.x2)/2,(e.y1+e.y2)/2,'mid'); }
+  }
+  else if (e.type === 'circle') {
+    const c = w2s(e.cx, e.cy);
+    ctx.beginPath(); ctx.arc(c.x, c.y, e.r * cam.zoom, 0, Math.PI*2); ctx.stroke();
+    if (sel) {
+      drawHandle(e.cx, e.cy, 'center');
+      [0,90,180,270].forEach(a => { const r = a * Math.PI/180; drawHandle(e.cx + e.r*Math.cos(r), e.cy + e.r*Math.sin(r)); });
+    }
+  }
+  else if (e.type === 'arc') {
+    const c = w2s(e.cx, e.cy);
+    ctx.beginPath(); ctx.arc(c.x, c.y, e.r * cam.zoom, -e.sa, -e.ea, true); ctx.stroke();
+    if (sel) {
+      drawHandle(e.cx, e.cy, 'center');
+      drawHandle(e.cx + e.r*Math.cos(e.sa), e.cy + e.r*Math.sin(e.sa));
+      drawHandle(e.cx + e.r*Math.cos(e.ea), e.cy + e.r*Math.sin(e.ea));
+    }
+  }
+  else if (e.type === 'rect') {
+    const p1 = w2s(e.x1,e.y1), p2 = w2s(e.x2,e.y2);
+    ctx.beginPath();
+    ctx.rect(Math.min(p1.x,p2.x), Math.min(p1.y,p2.y), Math.abs(p2.x-p1.x), Math.abs(p2.y-p1.y));
+    ctx.stroke();
+    if (sel) {
+      drawHandle(e.x1,e.y1); drawHandle(e.x2,e.y1);
+      drawHandle(e.x2,e.y2); drawHandle(e.x1,e.y2);
+      drawHandle((e.x1+e.x2)/2,(e.y1+e.y2)/2,'center');
+    }
+  }
+  else if (e.type === 'dim') {
+    drawDim(e, sel);
+  }
+  ctx.restore();
+}
+
+function drawHandle(wx, wy, type) {
+  const p = w2s(wx, wy);
+  ctx.save();
+  ctx.lineWidth = 1;
+  if (type === 'center') {
+    ctx.fillStyle = '#4a9eff'; ctx.strokeStyle = '#0e1014';
+    ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  } else if (type === 'mid') {
+    ctx.fillStyle = '#3dd68c'; ctx.strokeStyle = '#0e1014';
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y-5); ctx.lineTo(p.x+5, p.y+4); ctx.lineTo(p.x-5, p.y+4); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+  } else {
+    ctx.fillStyle = '#4a9eff'; ctx.strokeStyle = '#0e1014';
+    ctx.fillRect(p.x-3.5,p.y-3.5,7,7); ctx.strokeRect(p.x-3.5,p.y-3.5,7,7);
+  }
+  ctx.restore();
+}
+
+function drawDim(e, sel) {
+  const dx = e.x2-e.x1, dy = e.y2-e.y1;
+  const dist = Math.sqrt(dx*dx+dy*dy);
+  if (dist < 1e-6) return;
+  const off = e.off || 0.35;
+  const nx = -dy/dist*off, ny = dx/dist*off;
+  const p1 = w2s(e.x1, e.y1);
+  const p2 = w2s(e.x2, e.y2);
+  const d1 = w2s(e.x1+nx, e.y1+ny);
+  const d2 = w2s(e.x2+nx, e.y2+ny);
+
+  ctx.strokeStyle = sel ? '#f5a623' : '#a07030';
+  ctx.fillStyle = sel ? '#f5a623' : '#a07030';
+  ctx.lineWidth = 0.75;
+
+  ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(d1.x, d1.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(p2.x, p2.y); ctx.lineTo(d2.x, d2.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(d1.x, d1.y); ctx.lineTo(d2.x, d2.y); ctx.stroke();
+
+  const ang = Math.atan2(d2.y-d1.y, d2.x-d1.x);
+  arrow(d1.x, d1.y, ang, 7);
+  arrow(d2.x, d2.y, ang+Math.PI, 7);
+
+  const mx = (d1.x+d2.x)/2, my = (d1.y+d2.y)/2;
+  ctx.save();
+  ctx.translate(mx, my);
+  const ta = Math.abs(ang) > Math.PI/2 ? ang+Math.PI : ang;
+  ctx.rotate(ta);
+  ctx.font = `${Math.max(9,Math.min(12, cam.zoom*0.11))}px Courier New`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(dist.toFixed(3)+'"', 0, -2);
+  ctx.restore();
+}
+
+function arrow(x, y, ang, sz) {
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(ang);
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-sz,-sz*0.3); ctx.lineTo(-sz,sz*0.3); ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+// ---- Snap indicator ----
+function drawSnapIndicator() {
+  if (!snapPt || !snapPt.type) return;
+  const p = w2s(snapPt.x, snapPt.y);
+  ctx.save();
+  ctx.strokeStyle = '#3dd68c';
+  ctx.lineWidth = 1;
+  if (snapPt.type === 'endpoint') {
+    ctx.strokeRect(p.x-5, p.y-5, 10, 10);
+  } else if (snapPt.type === 'center') {
+    ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p.x-9,p.y); ctx.lineTo(p.x+9,p.y); ctx.moveTo(p.x,p.y-9); ctx.lineTo(p.x,p.y+9); ctx.stroke();
+  } else if (snapPt.type === 'midpoint') {
+    ctx.beginPath(); ctx.moveTo(p.x,p.y-6); ctx.lineTo(p.x+6,p.y+4); ctx.lineTo(p.x-6,p.y+4); ctx.closePath(); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ---- Preview ----
+function drawPreview() {
+  if (!ts.active && !ts.step) return;
+  const tgt = snapPt || mouse;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(74,158,255,0.45)';
+  ctx.setLineDash([4,4]);
+  ctx.lineWidth = 1;
+  ctx.lineCap = 'round';
+
+  if (currentTool === 'line' && ts.x1 !== undefined) {
+    const p1 = w2s(ts.x1,ts.y1), p2 = w2s(tgt.x,tgt.y);
+    ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+    const dx=tgt.x-ts.x1,dy=tgt.y-ts.y1, len=Math.sqrt(dx*dx+dy*dy);
+    ctx.setLineDash([]); ctx.fillStyle='rgba(74,158,255,0.8)';
+    ctx.font='11px Courier New'; ctx.textAlign='center';
+    ctx.fillText(len.toFixed(3)+'"', (p1.x+p2.x)/2, (p1.y+p2.y)/2-8);
+  }
+  else if (currentTool === 'circle' && ts.cx !== undefined) {
+    const c = w2s(ts.cx,ts.cy);
+    const dx=tgt.x-ts.cx,dy=tgt.y-ts.cy, r=Math.sqrt(dx*dx+dy*dy);
+    ctx.beginPath(); ctx.arc(c.x, c.y, r*cam.zoom, 0, Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]); ctx.fillStyle='rgba(74,158,255,0.8)';
+    ctx.font='11px Courier New'; ctx.textAlign='center';
+    ctx.fillText('r='+r.toFixed(3)+'"', c.x, c.y+r*cam.zoom+14);
+  }
+  else if (currentTool === 'arc') {
+    if (ts.step === 1 && ts.cx !== undefined) {
+      const c = w2s(ts.cx,ts.cy);
+      const dx=tgt.x-ts.cx,dy=tgt.y-ts.cy, r=Math.sqrt(dx*dx+dy*dy);
+      ctx.beginPath(); ctx.arc(c.x,c.y,r*cam.zoom,0,Math.PI*2); ctx.stroke();
+    } else if (ts.step === 2 && ts.r !== undefined) {
+      const c = w2s(ts.cx,ts.cy);
+      const ea = Math.atan2(tgt.y-ts.cy, tgt.x-ts.cx);
+      ctx.beginPath(); ctx.arc(c.x,c.y,ts.r*cam.zoom,-ts.sa,-ea,true); ctx.stroke();
+    }
+  }
+  else if (currentTool === 'rect' && ts.x1 !== undefined) {
+    const p1=w2s(ts.x1,ts.y1), p2=w2s(tgt.x,tgt.y);
+    ctx.beginPath(); ctx.rect(Math.min(p1.x,p2.x),Math.min(p1.y,p2.y),Math.abs(p2.x-p1.x),Math.abs(p2.y-p1.y)); ctx.stroke();
+    const bw=Math.abs(tgt.x-ts.x1).toFixed(3), bh=Math.abs(tgt.y-ts.y1).toFixed(3);
+    ctx.setLineDash([]); ctx.fillStyle='rgba(74,158,255,0.8)';
+    ctx.font='11px Courier New'; ctx.textAlign='center';
+    ctx.fillText(bw+'" × '+bh+'"', (p1.x+p2.x)/2, Math.min(p1.y,p2.y)-6);
+  }
+  else if (currentTool === 'dimension' && ts.x1 !== undefined) {
+    ctx.setLineDash([]);
+    drawDim({ type:'dim', x1:ts.x1,y1:ts.y1, x2:tgt.x,y2:tgt.y, off:0.35 }, false);
+  }
+  ctx.restore();
+}
+
+// ---- Render ----
+function render() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = '#0e1014';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  drawGrid();
+  for (const e of entities) drawEntity(e, selectedIds.has(e.id));
+  drawPreview();
+  drawSnapIndicator();
+
+  // Crosshair cursor
+  const p = w2s(mouse.wx, mouse.wy);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(74,158,255,0.15)';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.moveTo(p.x,0); ctx.lineTo(p.x,canvas.height); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,p.y); ctx.lineTo(canvas.width,p.y); ctx.stroke();
+  ctx.restore();
+}
+
+// ---- Snap ----
+function computeSnap(wx, wy) {
+  const DIST = 10 / cam.zoom;
+  let best = null, bestD = DIST;
+
+  for (const e of entities) {
+    const pts = snapPoints(e);
+    for (const p of pts) {
+      const d = Math.hypot(p.x-wx, p.y-wy);
+      if (d < bestD) { bestD = d; best = p; }
+    }
+  }
+  if (best) return best;
+
+  // Grid snap
+  const g = gridSnapSize();
+  return { x: Math.round(wx/g)*g, y: Math.round(wy/g)*g, type: 'grid' };
+}
+
+function snapPoints(e) {
+  const pts = [];
+  if (e.type === 'line') {
+    pts.push({x:e.x1,y:e.y1,type:'endpoint'},{x:e.x2,y:e.y2,type:'endpoint'});
+    pts.push({x:(e.x1+e.x2)/2,y:(e.y1+e.y2)/2,type:'midpoint'});
+  } else if (e.type === 'circle') {
+    pts.push({x:e.cx,y:e.cy,type:'center'});
+    [0,Math.PI/2,Math.PI,3*Math.PI/2].forEach(a=>pts.push({x:e.cx+e.r*Math.cos(a),y:e.cy+e.r*Math.sin(a),type:'endpoint'}));
+  } else if (e.type === 'arc') {
+    pts.push({x:e.cx,y:e.cy,type:'center'});
+    pts.push({x:e.cx+e.r*Math.cos(e.sa),y:e.cy+e.r*Math.sin(e.sa),type:'endpoint'});
+    pts.push({x:e.cx+e.r*Math.cos(e.ea),y:e.cy+e.r*Math.sin(e.ea),type:'endpoint'});
+  } else if (e.type === 'rect') {
+    pts.push({x:e.x1,y:e.y1,type:'endpoint'},{x:e.x2,y:e.y1,type:'endpoint'});
+    pts.push({x:e.x2,y:e.y2,type:'endpoint'},{x:e.x1,y:e.y2,type:'endpoint'});
+    pts.push({x:(e.x1+e.x2)/2,y:(e.y1+e.y2)/2,type:'center'});
+  }
+  return pts;
+}
+
+function gridSnapSize() {
+  if (cam.zoom < 18) return 1.0;
+  if (cam.zoom < 45) return 0.5;
+  if (cam.zoom > 280) return 0.05;
+  return 0.1;
+}
+
+function applyOrtho(wx, wy, rx, ry) {
+  if (!orthoEnabled) return { x: wx, y: wy };
+  return Math.abs(wx-rx) > Math.abs(wy-ry) ? {x:wx,y:ry} : {x:rx,y:wy};
+}
+
+// ---- Mouse ----
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  const sx = e.clientX-r.left, sy = e.clientY-r.top;
+
+  if (panning) {
+    cam.x = panCam0.x + (sx-panStart.x);
+    cam.y = panCam0.y + (sy-panStart.y);
+    render(); return;
+  }
+
+  let raw = s2w(sx, sy);
+
+  // Ortho constraint
+  if (orthoEnabled && (ts.x1 !== undefined || ts.cx !== undefined)) {
+    const rx = ts.x1 ?? ts.cx, ry = ts.y1 ?? ts.cy;
+    if (rx !== undefined) raw = applyOrtho(raw.x, raw.y, rx, ry);
+  }
+
+  if (snapEnabled) {
+    snapPt = computeSnap(raw.x, raw.y);
+  } else {
+    snapPt = { x: raw.x, y: raw.y, type: null };
+  }
+
+  mouse.wx = snapPt.x; mouse.wy = snapPt.y;
+
+  // Update UI
+  document.getElementById('cur-x').textContent = snapPt.x.toFixed(3);
+  document.getElementById('cur-y').textContent = snapPt.y.toFixed(3);
+  const dot = document.getElementById('snap-dot');
+  const lbl = document.getElementById('snap-label');
+  if (snapPt.type && snapPt.type !== 'grid') {
+    dot.classList.add('on'); lbl.classList.add('on');
+    lbl.textContent = snapPt.type;
+  } else {
+    dot.classList.remove('on'); lbl.classList.remove('on');
+    lbl.textContent = snapPt.type === 'grid' ? 'grid' : 'no snap';
+  }
+
+  // Drag move
+  if (currentTool === 'select' && ts.dragging) {
+    const dx = mouse.wx - ts.dragRef.x, dy = mouse.wy - ts.dragRef.y;
+    for (const id of selectedIds) {
+      const ent = entities.find(e => e.id === id);
+      if (ent && ts.orig[id]) moveEntity(ent, ts.orig[id], dx, dy);
+    }
+  }
+
+  render();
+});
+
+canvas.addEventListener('mousedown', e => {
+  const r = canvas.getBoundingClientRect();
+  const sx = e.clientX-r.left, sy = e.clientY-r.top;
+  if (e.button === 1) {
+    panning = true;
+    panStart = { x: sx, y: sy };
+    panCam0 = { x: cam.x, y: cam.y };
+    return;
+  }
+  if (e.button !== 0) return;
+  toolClick({ x: mouse.wx, y: mouse.wy });
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (e.button === 1) { panning = false; canvas.style.cursor = currentTool === 'select' ? 'default' : 'crosshair'; return; }
+  if (currentTool === 'select' && ts.dragging) {
+    saveUndo();
+    ts.dragging = false;
+    updatePanel();
+  }
+});
+
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  const sx = e.clientX-r.left, sy = e.clientY-r.top;
+  const f = e.deltaY < 0 ? 1.15 : 1/1.15;
+  const nz = Math.max(4, Math.min(1200, cam.zoom*f));
+  cam.x = sx - (sx-cam.x)*(nz/cam.zoom);
+  cam.y = sy - (sy-cam.y)*(nz/cam.zoom);
+  cam.zoom = nz;
+  document.getElementById('st-zoom').textContent = Math.round(cam.zoom)+'%';
+  render();
+}, { passive: false });
+
+// Middle-click pan cursor
+canvas.addEventListener('mousemove', e => { if (panning) canvas.style.cursor = 'grabbing'; });
+
+// ---- Tool click handler ----
+function toolClick(pt) {
+  if (currentTool === 'select') {
+    const hit = hitTest(pt.x, pt.y);
+    if (hit) {
+      if (!selectedIds.has(hit.id)) { selectedIds.clear(); selectedIds.add(hit.id); }
+      ts.dragging = true;
+      ts.dragRef = { x: pt.x, y: pt.y };
+      ts.orig = {};
+      for (const id of selectedIds) {
+        const ent = entities.find(e=>e.id===id);
+        if (ent) ts.orig[id] = {...ent};
+      }
+    } else {
+      selectedIds.clear();
+      ts.dragging = false;
+    }
+    updatePanel(); return;
+  }
+
+  if (currentTool === 'line') {
+    if (!ts.active) {
+      ts.active = true; ts.x1 = pt.x; ts.y1 = pt.y;
+      hint('Click end point — Esc to cancel, click again to chain lines');
+    } else {
+      saveUndo();
+      addEnt({ type:'line', x1:ts.x1,y1:ts.y1, x2:pt.x,y2:pt.y });
+      ts.x1 = pt.x; ts.y1 = pt.y; // chain
+    }
+    return;
+  }
+
+  if (currentTool === 'circle') {
+    if (!ts.active) {
+      ts.active = true; ts.cx = pt.x; ts.cy = pt.y;
+      hint('Click to set radius');
+    } else {
+      const dx=pt.x-ts.cx, dy=pt.y-ts.cy, r=Math.sqrt(dx*dx+dy*dy);
+      if (r > 0.001) { saveUndo(); addEnt({ type:'circle', cx:ts.cx,cy:ts.cy,r }); }
+      ts.active=false; hint('Click center point');
+    }
+    return;
+  }
+
+  if (currentTool === 'arc') {
+    if (!ts.step) {
+      ts.step=1; ts.cx=pt.x; ts.cy=pt.y;
+      hint('Click start point on arc');
+    } else if (ts.step === 1) {
+      const dx=pt.x-ts.cx,dy=pt.y-ts.cy;
+      ts.r=Math.sqrt(dx*dx+dy*dy); ts.sa=Math.atan2(dy,dx); ts.step=2;
+      hint('Click end point on arc');
+    } else {
+      const ea=Math.atan2(pt.y-ts.cy,pt.x-ts.cx);
+      saveUndo(); addEnt({type:'arc',cx:ts.cx,cy:ts.cy,r:ts.r,sa:ts.sa,ea});
+      ts={}; hint('Click center point');
+    }
+    return;
+  }
+
+  if (currentTool === 'rect') {
+    if (!ts.active) {
+      ts.active=true; ts.x1=pt.x; ts.y1=pt.y;
+      hint('Click opposite corner');
+    } else {
+      const bw=Math.abs(pt.x-ts.x1),bh=Math.abs(pt.y-ts.y1);
+      if (bw>0.001 && bh>0.001) { saveUndo(); addEnt({type:'rect',x1:ts.x1,y1:ts.y1,x2:pt.x,y2:pt.y}); }
+      ts.active=false; hint('Click first corner');
+    }
+    return;
+  }
+
+  if (currentTool === 'dimension') {
+    if (!ts.active) {
+      ts.active=true; ts.x1=pt.x; ts.y1=pt.y;
+      hint('Click end point of dimension');
+    } else {
+      saveUndo(); addEnt({type:'dim',x1:ts.x1,y1:ts.y1,x2:pt.x,y2:pt.y,off:0.35});
+      ts.active=false; hint('Click first point');
+    }
+    return;
+  }
+}
+
+// ---- Hit test ----
+function hitTest(wx, wy) {
+  const D = 8/cam.zoom;
+  for (let i=entities.length-1; i>=0; i--) {
+    if (entityHit(entities[i], wx, wy, D)) return entities[i];
+  }
+  return null;
+}
+
+function entityHit(e, wx, wy, D) {
+  if (e.type==='line') return seg2pt(wx,wy,e.x1,e.y1,e.x2,e.y2) < D;
+  if (e.type==='circle') return Math.abs(Math.hypot(wx-e.cx,wy-e.cy)-e.r) < D;
+  if (e.type==='arc') {
+    const d=Math.hypot(wx-e.cx,wy-e.cy);
+    if (Math.abs(d-e.r)>D) return false;
+    const a=Math.atan2(wy-e.cy,wx-e.cx);
+    // Normalize
+    let sa=e.sa,ea=e.ea,aa=a;
+    while(aa<sa) aa+=Math.PI*2; while(ea<sa) ea+=Math.PI*2;
+    return aa<=ea+0.05;
+  }
+  if (e.type==='rect') {
+    const x1=Math.min(e.x1,e.x2),x2=Math.max(e.x1,e.x2),y1=Math.min(e.y1,e.y2),y2=Math.max(e.y1,e.y2);
+    return seg2pt(wx,wy,x1,y1,x2,y1)<D || seg2pt(wx,wy,x2,y1,x2,y2)<D ||
+           seg2pt(wx,wy,x2,y2,x1,y2)<D || seg2pt(wx,wy,x1,y2,x1,y1)<D;
+  }
+  if (e.type==='dim') return seg2pt(wx,wy,e.x1,e.y1,e.x2,e.y2) < D*3;
+  return false;
+}
+
+function seg2pt(px,py,ax,ay,bx,by) {
+  const dx=bx-ax,dy=by-ay,l2=dx*dx+dy*dy;
+  if(l2===0) return Math.hypot(px-ax,py-ay);
+  const t=Math.max(0,Math.min(1,((px-ax)*dx+(py-ay)*dy)/l2));
+  return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
+}
+
+// ---- Move entity ----
+function moveEntity(ent, orig, dx, dy) {
+  if (ent.type==='line'||ent.type==='rect'||ent.type==='dim') {
+    ent.x1=orig.x1+dx; ent.y1=orig.y1+dy; ent.x2=orig.x2+dx; ent.y2=orig.y2+dy;
+  } else if (ent.type==='circle'||ent.type==='arc') {
+    ent.cx=orig.cx+dx; ent.cy=orig.cy+dy;
+  }
+}
+
+// ---- Entity management ----
+function addEnt(props) {
+  entities.push({ ...props, id: nextId++ });
+  updatePanel(); render();
+}
+
+// ---- Undo/redo ----
+function saveUndo() {
+  undoStack.push(JSON.stringify({ entities, nextId }));
+  if (undoStack.length>60) undoStack.shift();
+  redoStack=[];
+}
+function undo() {
+  if(!undoStack.length) return;
+  redoStack.push(JSON.stringify({ entities, nextId }));
+  const s=JSON.parse(undoStack.pop());
+  entities=s.entities; nextId=s.nextId;
+  selectedIds.clear(); updatePanel(); render();
+}
+function redo() {
+  if(!redoStack.length) return;
+  undoStack.push(JSON.stringify({ entities, nextId }));
+  const s=JSON.parse(redoStack.pop());
+  entities=s.entities; nextId=s.nextId;
+  updatePanel(); render();
+}
+
+// ---- Tools ----
+function setTool(name) {
+  currentTool=name; ts={};
+  document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('tool-'+name);
+  if(btn) btn.classList.add('active');
+  document.getElementById('st-tool').textContent=name.toUpperCase();
+  canvas.style.cursor = name==='select'?'default':'crosshair';
+  const hints = {
+    select:'Click to select · drag to move · Del to delete',
+    line:'Click start point · click end · chain continues · Esc to stop',
+    circle:'Click center point · click to set radius',
+    arc:'Click center · click start point · click end point',
+    rect:'Click first corner · click opposite corner',
+    dimension:'Click first point · click second point'
+  };
+  hint(hints[name]||'');
+  render();
+}
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if(e.key==='Escape') { ts={}; hint(''); render(); }
+  if(e.key==='Delete'||e.key==='Backspace') deleteSelected();
+  if(!e.ctrlKey&&!e.metaKey) {
+    if(e.key==='s'||e.key==='S') setTool('select');
+    if(e.key==='l'||e.key==='L') setTool('line');
+    if(e.key==='c'||e.key==='C') setTool('circle');
+    if(e.key==='a'||e.key==='A') setTool('arc');
+    if(e.key==='r'||e.key==='R') setTool('rect');
+    if(e.key==='d'||e.key==='D') setTool('dimension');
+    if(e.key==='f'||e.key==='F') zoomFit();
+  }
+  if(e.ctrlKey||e.metaKey) {
+    if(e.key==='z') { e.shiftKey?redo():undo(); e.preventDefault(); }
+    if(e.key==='y') { redo(); e.preventDefault(); }
+  }
+});
+
+// ---- Delete ----
+function deleteSelected() {
+  if(!selectedIds.size) return;
+  saveUndo();
+  entities=entities.filter(e=>!selectedIds.has(e.id));
+  selectedIds.clear();
+  updatePanel(); render();
+}
+
+// ---- Zoom fit ----
+function zoomFit() {
+  if(!entities.length) {
+    cam.x=canvas.width/2; cam.y=canvas.height/2; cam.zoom=96;
+    document.getElementById('st-zoom').textContent='96%';
+    render(); return;
+  }
+  let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
+  for(const e of entities) {
+    const b=bounds(e);
+    x0=Math.min(x0,b.x0); y0=Math.min(y0,b.y0);
+    x1=Math.max(x1,b.x1); y1=Math.max(y1,b.y1);
+  }
+  const ew=x1-x0||2, eh=y1-y0||2;
+  const nz=Math.min((canvas.width-80)/ew, (canvas.height-80)/eh)*0.88;
+  cam.zoom=Math.max(5,Math.min(1200,nz));
+  cam.x=canvas.width/2-(x0+ew/2)*cam.zoom;
+  cam.y=canvas.height/2+(y0+eh/2)*cam.zoom;
+  document.getElementById('st-zoom').textContent=Math.round(cam.zoom)+'%';
+  render();
+}
+
+function bounds(e) {
+  if(e.type==='line') return {x0:Math.min(e.x1,e.x2),x1:Math.max(e.x1,e.x2),y0:Math.min(e.y1,e.y2),y1:Math.max(e.y1,e.y2)};
+  if(e.type==='circle'||e.type==='arc') return {x0:e.cx-e.r,x1:e.cx+e.r,y0:e.cy-e.r,y1:e.cy+e.r};
+  if(e.type==='rect'||e.type==='dim') return {x0:Math.min(e.x1,e.x2),x1:Math.max(e.x1,e.x2),y0:Math.min(e.y1,e.y2),y1:Math.max(e.y1,e.y2)};
+  return {x0:0,x1:1,y0:0,y1:1};
+}
+
+// ---- DXF export ----
+function exportDXF() {
+  let d='0\nSECTION\n2\nHEADER\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n';
+  for(const e of entities) {
+    if(e.type==='line') d+=`0\nLINE\n8\n0\n10\n${e.x1}\n20\n${e.y1}\n30\n0\n11\n${e.x2}\n21\n${e.y2}\n31\n0\n`;
+    else if(e.type==='circle') d+=`0\nCIRCLE\n8\n0\n10\n${e.cx}\n20\n${e.cy}\n30\n0\n40\n${e.r}\n`;
+    else if(e.type==='arc') {
+      const s=((e.sa*180/Math.PI)+360)%360, ee=((e.ea*180/Math.PI)+360)%360;
+      d+=`0\nARC\n8\n0\n10\n${e.cx}\n20\n${e.cy}\n30\n0\n40\n${e.r}\n50\n${s}\n51\n${ee}\n`;
+    }
+    else if(e.type==='rect') {
+      d+=`0\nLINE\n8\n0\n10\n${e.x1}\n20\n${e.y1}\n30\n0\n11\n${e.x2}\n21\n${e.y1}\n31\n0\n`;
+      d+=`0\nLINE\n8\n0\n10\n${e.x2}\n20\n${e.y1}\n30\n0\n11\n${e.x2}\n21\n${e.y2}\n31\n0\n`;
+      d+=`0\nLINE\n8\n0\n10\n${e.x2}\n20\n${e.y2}\n30\n0\n11\n${e.x1}\n21\n${e.y2}\n31\n0\n`;
+      d+=`0\nLINE\n8\n0\n10\n${e.x1}\n20\n${e.y2}\n30\n0\n11\n${e.x1}\n21\n${e.y1}\n31\n0\n`;
+    }
+  }
+  d+='0\nENDSEC\n0\nEOF\n';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([d],{type:'text/plain'}));
+  a.download='drawing.dxf'; a.click();
+}
+
+// ---- New file ----
+function newFile() {
+  if(entities.length && !confirm('Start a new drawing? Unsaved work will be lost.')) return;
+  saveUndo(); entities=[]; selectedIds.clear(); nextId=1;
+  updatePanel(); render();
+}
+
+// ---- Snap/Ortho ----
+function toggleSnap() {
+  snapEnabled=!snapEnabled;
+  const b=document.getElementById('snap-btn');
+  b.textContent=`⊡ Snap ${snapEnabled?'ON':'OFF'}`;
+  b.className='menu-btn'+(snapEnabled?' on':'');
+}
+function toggleOrtho() {
+  orthoEnabled=!orthoEnabled;
+  const b=document.getElementById('ortho-btn');
+  b.textContent=`⊾ Ortho ${orthoEnabled?'ON':'OFF'}`;
+  b.className='menu-btn'+(orthoEnabled?' warn':'');
+}
+
+// ---- UI helpers ----
+function hint(text) { document.getElementById('st-hint').textContent = text; }
+
+function updatePanel() {
+  const n=entities.length;
+  document.getElementById('entity-count').textContent=n;
+  document.getElementById('st-ent').textContent=n;
+
+  const ICONS = {
+    line:`<svg class="entity-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="14" x2="14" y2="2"/></svg>`,
+    circle:`<svg class="entity-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5"/></svg>`,
+    arc:`<svg class="entity-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 14 Q2 2 14 2" fill="none"/></svg>`,
+    rect:`<svg class="entity-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="8"/></svg>`,
+    dim:`<svg class="entity-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="11" x2="14" y2="11"/><line x1="2" y1="8" x2="2" y2="14"/><line x1="14" y1="8" x2="14" y2="14"/></svg>`,
+  };
+
+  document.getElementById('entity-list').innerHTML = entities.map(e=>{
+    const sel=selectedIds.has(e.id);
+    return `<div class="entity-item ${sel?'selected':''}" onclick="selectEnt(${e.id})">${ICONS[e.type]||''}${entLabel(e)}</div>`;
+  }).join('');
+
+  const ps=document.getElementById('props-section');
+  if(selectedIds.size===1) {
+    const ent=entities.find(e=>selectedIds.has(e.id));
+    if(ent) { ps.style.display='block'; document.getElementById('props-container').innerHTML=entProps(ent); return; }
+  }
+  ps.style.display='none';
+}
+
+function entLabel(e) {
+  if(e.type==='line') { const dx=e.x2-e.x1,dy=e.y2-e.y1; return `LINE ${Math.sqrt(dx*dx+dy*dy).toFixed(3)}"` }
+  if(e.type==='circle') return `CIRC ⌀${(e.r*2).toFixed(3)}"`;
+  if(e.type==='arc') return `ARC r${e.r.toFixed(3)}"`;
+  if(e.type==='rect') return `RECT ${Math.abs(e.x2-e.x1).toFixed(2)}×${Math.abs(e.y2-e.y1).toFixed(2)}"`;
+  if(e.type==='dim') { const dx=e.x2-e.x1,dy=e.y2-e.y1; return `DIM ${Math.sqrt(dx*dx+dy*dy).toFixed(3)}"` }
+  return e.type;
+}
+
+function entProps(e) {
+  const row=(k,v)=>`<div class="prop-row"><span class="prop-key">${k}</span><span class="prop-val">${v}</span></div>`;
+  if(e.type==='line') {
+    const dx=e.x2-e.x1,dy=e.y2-e.y1,len=Math.sqrt(dx*dx+dy*dy),ang=Math.atan2(dy,dx)*180/Math.PI;
+    return row('X1',e.x1.toFixed(3)+'"')+row('Y1',e.y1.toFixed(3)+'"')+row('X2',e.x2.toFixed(3)+'"')+row('Y2',e.y2.toFixed(3)+'"')+row('Length',len.toFixed(4)+'"')+row('Angle',ang.toFixed(1)+'°');
+  }
+  if(e.type==='circle') return row('CX',e.cx.toFixed(3)+'"')+row('CY',e.cy.toFixed(3)+'"')+row('Radius',e.r.toFixed(4)+'"')+row('Diameter',(e.r*2).toFixed(4)+'"')+row('Circum',(e.r*2*Math.PI).toFixed(4)+'"');
+  if(e.type==='arc') { const span=((e.ea-e.sa)*180/Math.PI+360)%360; return row('CX',e.cx.toFixed(3)+'"')+row('CY',e.cy.toFixed(3)+'"')+row('Radius',e.r.toFixed(4)+'"')+row('Span',span.toFixed(1)+'°'); }
+  if(e.type==='rect') { const w=Math.abs(e.x2-e.x1),h=Math.abs(e.y2-e.y1); return row('Width',w.toFixed(3)+'"')+row('Height',h.toFixed(3)+'"')+row('Area',(w*h).toFixed(4)+'"²'); }
+  if(e.type==='dim') { const dx=e.x2-e.x1,dy=e.y2-e.y1; return row('Value',Math.sqrt(dx*dx+dy*dy).toFixed(4)+'"'); }
+  return '';
+}
+
+function selectEnt(id) {
+  selectedIds.clear(); selectedIds.add(id);
+  updatePanel(); render();
+}
+
+// ---- Init ----
+resize();
+setTool('select');
+
+// Load starter part
+setTimeout(() => {
+  // Simple flanged bushing top-view as example
+  addEnt({type:'rect', x1:-1.5,y1:-1.0,x2:1.5,y2:1.0});   // outer flange
+  addEnt({type:'rect', x1:-0.75,y1:-0.5,x2:0.75,y2:0.5});  // boss
+  addEnt({type:'circle', cx:0,cy:0,r:0.375});               // bore
+  addEnt({type:'circle', cx:-1.125,cy:-0.625,r:0.125});     // corner bolt hole
+  addEnt({type:'circle', cx: 1.125,cy:-0.625,r:0.125});
+  addEnt({type:'circle', cx:-1.125,cy: 0.625,r:0.125});
+  addEnt({type:'circle', cx: 1.125,cy: 0.625,r:0.125});
+  addEnt({type:'dim', x1:-1.5,y1:-1.0,x2:1.5,y2:-1.0,off:0.4}); // width
+  addEnt({type:'dim', x1: 1.5,y1:-1.0,x2:1.5,y2: 1.0,off:0.4}); // height
+  updatePanel();
+  zoomFit();
+}, 80);
+</script>
+</body>
+</html>
