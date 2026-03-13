@@ -669,81 +669,96 @@ function newFile(){if(entities.length&&!confirm('Start new drawing?'))return;sav
 function openSF(e){e.preventDefault();window.location.href='https://caddyshackk.github.io/machinist-tool/index.html';}
 
 // ── TRIM ─────────────────────────────────────────────────────────
-// Convert screen path to world-space segments and trim anything they cross
 function doTrimStroke(screenPath){
   if(!screenPath||screenPath.length<2) return;
-  // Build world-space segments from the stroke
-  const wSegs=[];
-  for(let i=0;i<screenPath.length-1;i++){
-    wSegs.push({x1:s2w(screenPath[i].x,screenPath[i].y).x,y1:s2w(screenPath[i].x,screenPath[i].y).y,
-                x2:s2w(screenPath[i+1].x,screenPath[i+1].y).x,y2:s2w(screenPath[i+1].x,screenPath[i+1].y).y});
-  }
-  // For each entity, collect all params where stroke crosses it
-  const toSplit=[];
+  // Use just start and end of stroke as a single clean cutting line
+  const a=s2w(screenPath[0].x,screenPath[0].y);
+  const b=s2w(screenPath[screenPath.length-1].x,screenPath[screenPath.length-1].y);
+  const cutter={type:'line',x1:a.x,y1:a.y,x2:b.x,y2:b.y};
+
+  const toProcess=[];
   for(const ent of entities){
     if(ent.type==='dim') continue;
+    const pts=intersectEntities(ent,cutter);
+    if(!pts.length) continue;
+    // Get params on the entity for each intersection
     const params=[];
-    for(const seg of wSegs){
-      const fakeLine={type:'line',x1:seg.x1,y1:seg.y1,x2:seg.x2,y2:seg.y2};
-      for(const pt of intersectEntities(ent,fakeLine)){
-        if(ent.type==='line'){
-          const dx=ent.x2-ent.x1,dy=ent.y2-ent.y1,l2=dx*dx+dy*dy;
-          if(!l2) continue;
-          const t=((pt.x-ent.x1)*dx+(pt.y-ent.y1)*dy)/l2;
-          if(t>1e-6&&t<1-1e-6) params.push(t);
-        } else if(ent.type==='circle'||ent.type==='arc'){
-          const a=Math.atan2(pt.y-ent.cy,pt.x-ent.cx);
-          if(ent.type==='circle'||angleInArc(a,ent.sa,ent.ea)) params.push(a);
-        }
+    for(const pt of pts){
+      if(ent.type==='line'){
+        const dx=ent.x2-ent.x1,dy=ent.y2-ent.y1,l2=dx*dx+dy*dy;
+        if(!l2) continue;
+        const t=((pt.x-ent.x1)*dx+(pt.y-ent.y1)*dy)/l2;
+        if(t>1e-6&&t<1-1e-6) params.push(t);
+      } else if(ent.type==='circle'||ent.type==='arc'){
+        const ang=Math.atan2(pt.y-ent.cy,pt.x-ent.cx);
+        if(ent.type==='circle'||angleInArc(ang,ent.sa,ent.ea)) params.push(ang);
       }
     }
-    if(params.length>0) toSplit.push({ent,params});
+    // Deduplicate params with tolerance
+    const unique=params.sort((a,b)=>a-b).filter((v,i,arr)=>i===0||Math.abs(v-arr[i-1])>1e-4);
+    if(unique.length) toProcess.push({ent,params:unique});
   }
-  if(!toSplit.length) return;
+  if(!toProcess.length) return;
   saveUndo();
-  for(const {ent,params} of toSplit){
-    const idx=entities.indexOf(ent);if(idx===-1) continue;
-    if(ent.type==='line') splitLine(ent,idx,[...new Set(params)].sort((a,b)=>a-b));
-    else if(ent.type==='circle') splitCircle(ent,idx,[...new Set(params)].sort((a,b)=>a-b));
-    else if(ent.type==='arc') splitArc(ent,idx,[...new Set(params)].sort((a,b)=>a-b));
+  for(const {ent,params} of toProcess){
+    const idx=entities.indexOf(ent);
+    if(idx===-1) continue;
+    if(ent.type==='line') cutLine(ent,idx,params);
+    else if(ent.type==='circle') cutCircle(ent,idx,params);
+    else if(ent.type==='arc') cutArc(ent,idx,params);
   }
   updatePanel();render();
 }
 
-function splitLine(e,idx,params){
-  const newEnts=[];
-  let prev=0;
-  for(const t of params){
-    newEnts.push({type:'line',x1:e.x1+(e.x2-e.x1)*prev,y1:e.y1+(e.y2-e.y1)*prev,
-                              x2:e.x1+(e.x2-e.x1)*t,  y2:e.y1+(e.y2-e.y1)*t,id:nextId++});
-    prev=t;
+// Line: remove the end closest to where the slash crossed, keep the rest
+function cutLine(e,idx,params){
+  params.sort((a,b)=>a-b);
+  const t=params[0]; // first intersection param
+  const keep=[];
+  // Remove whichever end the slash is closer to
+  if(t<=0.5){
+    // Slash hit the start half — trim start, keep end portion
+    if(1-t>1e-4)
+      keep.push({type:'line',
+        x1:e.x1+(e.x2-e.x1)*t,y1:e.y1+(e.y2-e.y1)*t,
+        x2:e.x2,y2:e.y2,id:nextId++});
+  } else {
+    // Slash hit the end half — trim end, keep start portion
+    if(t>1e-4)
+      keep.push({type:'line',
+        x1:e.x1,y1:e.y1,
+        x2:e.x1+(e.x2-e.x1)*t,y2:e.y1+(e.y2-e.y1)*t,id:nextId++});
   }
-  newEnts.push({type:'line',x1:e.x1+(e.x2-e.x1)*prev,y1:e.y1+(e.y2-e.y1)*prev,x2:e.x2,y2:e.y2,id:nextId++});
-  entities.splice(idx,1,...newEnts);
+  entities.splice(idx,1,...keep);
 }
 
-function splitCircle(e,idx,params){
-  if(params.length<1) return;
-  const newEnts=[];
-  for(let i=0;i<params.length;i++){
-    const sa=params[i],ea=params[(i+1)%params.length];
-    newEnts.push({type:'arc',cx:e.cx,cy:e.cy,r:e.r,sa,ea,id:nextId++});
+// Circle: cut into arc(s), removing the swept region the stroke crossed
+function cutCircle(e,idx,params){
+  if(params.length<2) return;
+  params.sort((a,b)=>a-b);
+  const keep=[];
+  // Remove arc between params[0] and params[1] (the part the stroke crossed)
+  // Keep the rest as one arc
+  keep.push({type:'arc',cx:e.cx,cy:e.cy,r:e.r,sa:params[params.length-1],ea:params[0],id:nextId++});
+  for(let i=0;i<params.length-1;i++){
+    // If more than 2 intersections, keep intermediate arcs except the first crossed segment
+    if(i>0) keep.push({type:'arc',cx:e.cx,cy:e.cy,r:e.r,sa:params[i],ea:params[i+1],id:nextId++});
   }
-  entities.splice(idx,1,...newEnts);
+  entities.splice(idx,1,...keep);
 }
 
-function splitArc(e,idx,params){
+// Arc: remove the portion between first and last intersection, keep outer pieces
+function cutArc(e,idx,params){
   const valid=params.filter(a=>angleInArc(a,e.sa,e.ea));
   if(!valid.length) return;
   valid.sort((a,b)=>a-b);
-  const newEnts=[];
-  let prev=e.sa;
-  for(const a of valid){
-    if(!anglesEqual(prev,a)) newEnts.push({type:'arc',cx:e.cx,cy:e.cy,r:e.r,sa:prev,ea:a,id:nextId++});
-    prev=a;
-  }
-  if(!anglesEqual(prev,e.ea)) newEnts.push({type:'arc',cx:e.cx,cy:e.cy,r:e.r,sa:prev,ea:e.ea,id:nextId++});
-  if(newEnts.length) entities.splice(idx,1,...newEnts);
+  const lo=valid[0], hi=valid[valid.length-1];
+  const keep=[];
+  if(!anglesEqual(e.sa,lo))
+    keep.push({type:'arc',cx:e.cx,cy:e.cy,r:e.r,sa:e.sa,ea:lo,id:nextId++});
+  if(!anglesEqual(hi,e.ea))
+    keep.push({type:'arc',cx:e.cx,cy:e.cy,r:e.r,sa:hi,ea:e.ea,id:nextId++});
+  if(keep.length) entities.splice(idx,1,...keep);
 }
 
 function angleInArc(a,sa,ea){
