@@ -593,7 +593,7 @@ canvas.addEventListener('touchend',e=>{
   if(!touchMoved&&e.changedTouches.length===1){
     const p=gtp(e.changedTouches[0]),now=Date.now();
     if(now-lastTap<320){
-      const nz=Math.min(1200,cam.zoom*1.6);
+      const nz=Math.min(8000,cam.zoom*1.6);
       cam.x=p.x-(p.x-cam.x)*(nz/cam.zoom);cam.y=p.y-(p.y-cam.y)*(nz/cam.zoom);cam.zoom=nz;
       $('stzoom',Math.round(nz)+'%');render();
     }else{updateFromPointer(p.x,p.y);toolClick({x:mouse.wx,y:mouse.wy});}
