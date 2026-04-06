@@ -143,17 +143,19 @@ function setupEventListeners() {
     document.getElementById('saveLibraryBtn').addEventListener('click', exportLibrary);
     document.getElementById('loadLibraryBtn').addEventListener('click', importLibrary);
 
-    // Tap size selector
-    document.getElementById('tapSize').addEventListener('change', () => {
-        handleTapSizeChange();
-        updateTapInfo();
+    // Tap size selector and thread engagement slider
+    document.getElementById('tapSize').addEventListener('change', updateTapRecommendations);
+    document.getElementById('tapType').addEventListener('change', updateTapRecommendations);
+    document.getElementById('threadEngagement')?.addEventListener('input', (e) => {
+        document.getElementById('threadEngagementValue').textContent = e.target.value + '%';
+        updateTapRecommendations();
     });
+    document.getElementById('threadDepth')?.addEventListener('input', updateTapRecommendations);
     
-    // Update tap info when material or tap type changes
+    // Update tap info when material changes
     document.getElementById('workMaterial').addEventListener('change', () => {
-        if (currentMachineType === 'tap') updateTapInfo();
+        if (currentMachineType === 'tap') updateTapRecommendations();
     });
-    document.getElementById('tapType').addEventListener('change', updateTapInfo);
 
     // Chip load checker - update on input
     document.getElementById('chipLoad')?.addEventListener('input', updateChipLoadIndicator);
@@ -168,10 +170,9 @@ function updateUIForMachineType() {
     const latheInputs = document.getElementById('latheInputs');
     const tapInputs = document.getElementById('tapInputs');
     const tapDrillResult = document.getElementById('tapDrillResult');
-    const cycleTimeResult = document.getElementById('cycleTimeResult');
     
     // Elements to hide in tap mode
-    const sfmGroup = document.querySelector('.input-group.with-hint');
+    const sfmGroup = document.getElementById('sfmGroup');
     const depthOfCutGroup = document.getElementById('depthOfCutGroup');
     const widthOfCutGroup = document.getElementById('widthOfCutGroup');
 
@@ -179,8 +180,7 @@ function updateUIForMachineType() {
     millDrillInputs.style.display = 'none';
     latheInputs.style.display = 'none';
     tapInputs.style.display = 'none';
-    tapDrillResult.style.display = 'none';
-    cycleTimeResult.style.display = 'none';
+    if (tapDrillResult) tapDrillResult.style.display = 'none';
 
     if (currentMachineType === 'lathe') {
         latheInputs.style.display = 'block';
@@ -191,12 +191,13 @@ function updateUIForMachineType() {
         updateFeedPerRevIndicator();
     } else if (currentMachineType === 'tap') {
         tapInputs.style.display = 'block';
-        tapDrillResult.style.display = 'flex';
-        cycleTimeResult.style.display = 'flex';
+        if (tapDrillResult) tapDrillResult.style.display = 'flex';
         // Hide SFM, DOC, WOC for tapping
         if (sfmGroup) sfmGroup.style.display = 'none';
         if (depthOfCutGroup) depthOfCutGroup.style.display = 'none';
         if (widthOfCutGroup) widthOfCutGroup.style.display = 'none';
+        // Update tap recommendations immediately
+        updateTapRecommendations();
     } else {
         millDrillInputs.style.display = 'block';
         if (sfmGroup) sfmGroup.style.display = 'flex';
@@ -230,44 +231,12 @@ function calculate() {
         mrr = 12 * rpm * feedPerRev * depthOfCut;
 
     } else if (currentMachineType === 'tap') {
-        // Tapping calculations
-        const tapSizeSelect = document.getElementById('tapSize');
-        let tapDiameter;
-        
-        if (tapSizeSelect.value === 'custom') {
-            tapDiameter = parseFloat(document.getElementById('tapDiameter').value);
-        } else {
-            tapDiameter = parseFloat(tapSizeSelect.value.split(',')[0]);
-        }
-        
-        const tpi = parseFloat(document.getElementById('tapPitch').value);
-        const tapType = document.getElementById('tapType').value;
-        const holeDepth = parseFloat(document.getElementById('holeDepth').value);
-
-        // Get speed factor for material and tap type
-        const speedFactor = tapSpeedFactors[workMaterial][tapType];
-
-        // Calculate drilling RPM first
-        const drillingRPM = (sfm * 12) / (Math.PI * tapDiameter);
-        
-        // Tapping RPM is a percentage of drilling RPM
-        rpm = drillingRPM * speedFactor;
-
-        // Feed Rate for tapping: IPM = RPM / TPI
-        feedRate = rpm / tpi;
-
-        // Calculate tap drill size (75% thread depth)
-        // Formula: Major Diameter - (0.9743 / TPI)
-        const tapDrill = tapDiameter - (0.9743 / tpi);
-        
-        // Display tap drill size
-        document.getElementById('tapDrillValue').textContent = `${tapDrill.toFixed(4)}"`;
-
-        // Cycle time estimate (seconds)
-        const cycleTime = (holeDepth / feedRate) * 60 * 2; // *2 for in and out
-        mrr = 0; // Not applicable for tapping
-        power = 0; // Minimal for tapping
-
+        // Tapping - values are auto-calculated in updateTapRecommendations
+        // No need to calculate here, just set dummy values so results don't show errors
+        rpm = 0;
+        feedRate = 0;
+        mrr = 0;
+        power = 0;
     } else {
         // Mill or Drill
         const toolDiameter = parseFloat(document.getElementById('toolDiameter').value);
@@ -591,102 +560,196 @@ function updateFeedPerRevIndicator() {
     message.className = 'indicator-message status-' + status;
 }
 
-// Tap Size Handler
-function handleTapSizeChange() {
+// Update Tap Recommendations (Auto-calculates everything)
+function updateTapRecommendations() {
+    console.log('updateTapRecommendations called');
     const tapSizeSelect = document.getElementById('tapSize');
-    const customDiameterInput = document.getElementById('customTapDiameter');
-    const customPitchInput = document.getElementById('customTapPitch');
-    const tapPitchInput = document.getElementById('tapPitch');
-
-    if (tapSizeSelect.value === 'custom') {
-        customDiameterInput.style.display = 'block';
-        customPitchInput.style.display = 'block';
-    } else {
-        customDiameterInput.style.display = 'none';
-        customPitchInput.style.display = 'none';
-        
-        // Parse and set TPI from selection
-        const [diameter, tpi] = tapSizeSelect.value.split(',');
-        if (tapPitchInput) {
-            tapPitchInput.value = parseFloat(tpi).toFixed(3);
-        }
+    if (!tapSizeSelect || !tapSizeSelect.value) {
+        console.log('No tap size selected');
+        return;
     }
-}
-
-// Update Tap Info Display
-function updateTapInfo() {
-    const tapSizeSelect = document.getElementById('tapSize');
+    
     const workMaterial = document.getElementById('workMaterial').value;
     const tapType = document.getElementById('tapType').value;
+    const threadEngagement = parseFloat(document.getElementById('threadEngagement')?.value || 75);
+    const threadDepth = parseFloat(document.getElementById('threadDepth')?.value || 0.5);
     
-    let tapDiameter;
+    console.log('Tap params:', {workMaterial, tapType, threadEngagement, threadDepth});
+    
+    const [tapDiameter, tpiOrPitch] = tapSizeSelect.value.split(',').map(parseFloat);
+    
+    // Determine if metric or imperial
+    const isMetric = tpiOrPitch < 10; // Metric pitches are < 10
     let tpi;
     
-    if (tapSizeSelect.value === 'custom') {
-        tapDiameter = parseFloat(document.getElementById('tapDiameter')?.value || 0.5);
-        tpi = parseFloat(document.getElementById('tapPitch')?.value || 13);
+    if (isMetric) {
+        // Convert metric pitch to TPI: TPI = 25.4 / pitch
+        tpi = 25.4 / tpiOrPitch;
     } else {
-        [tapDiameter, tpi] = tapSizeSelect.value.split(',').map(parseFloat);
+        tpi = tpiOrPitch;
     }
     
-    // Calculate tap drill size (75% thread depth)
-    // Formula: Major Diameter - (0.9743 / TPI)
-    const tapDrill = tapDiameter - (0.9743 / tpi);
+    // Calculate tap drill based on thread engagement percentage
+    // Formula varies based on engagement
+    let threadDepthConstant;
+    if (threadEngagement <= 50) {
+        threadDepthConstant = 1.299; // 50%
+    } else if (threadEngagement >= 100) {
+        threadDepthConstant = 0.6495; // 100%
+    } else {
+        threadDepthConstant = 0.9743; // 75% (standard)
+    }
     
-    // Get recommended speed based on material and tap type
-    const speedFactor = tapSpeedFactors[workMaterial][tapType];
-    const baseSFM = materialDatabase[workMaterial].carbide.sfm; // Use carbide as base
+    const tapDrill = tapDiameter - (threadDepthConstant / tpi);
+    
+    // Get recommended SFM based on material and tap type
+    const speedFactor = tapSpeedFactors[workMaterial]?.[tapType] || 0.5;
+    const baseSFM = materialDatabase[workMaterial]?.carbide?.sfm || 500;
     const recommendedSFM = Math.round(baseSFM * speedFactor);
     
-    // Update info display
-    const tapDrillInfo = document.getElementById('tapDrillInfo');
-    const tapSpeedInfo = document.getElementById('tapSpeedInfo');
+    // Calculate RPM: RPM = (SFM × 12) / (π × D)
+    const rpm = Math.round((recommendedSFM * 12) / (Math.PI * tapDiameter));
     
-    if (tapDrillInfo) {
-        // Find closest fractional drill size
-        const drillFraction = findClosestDrill(tapDrill);
-        tapDrillInfo.textContent = `${drillFraction} (${tapDrill.toFixed(4)}")`;
-    }
+    // Calculate feed rate: IPM = RPM / TPI
+    const feedRate = rpm / tpi;
     
-    if (tapSpeedInfo) {
-        tapSpeedInfo.textContent = `${recommendedSFM} SFM`;
-    }
+    // Calculate cycle time (in and out): seconds
+    const cycleTime = ((threadDepth / feedRate) * 60 * 2).toFixed(1);
+    
+    console.log('Calculated values:', {tapDrill, rpm, feedRate, cycleTime});
+    
+    // Update recommendation display - with safety checks
+    const drillFraction = findClosestDrill(tapDrill);
+    const recTapDrill = document.getElementById('recTapDrill');
+    const recRPM = document.getElementById('recRPM');
+    const recFeedRate = document.getElementById('recFeedRate');
+    const recCycleTime = document.getElementById('recCycleTime');
+    
+    console.log('Elements found:', {recTapDrill, recRPM, recFeedRate, recCycleTime});
+    
+    if (recTapDrill) recTapDrill.textContent = `${drillFraction} (${tapDrill.toFixed(4)}")`;
+    if (recRPM) recRPM.textContent = `${rpm} RPM`;
+    if (recFeedRate) recFeedRate.textContent = `${feedRate.toFixed(2)} IPM`;
+    if (recCycleTime) recCycleTime.textContent = `${cycleTime} sec`;
+    
+    console.log('Updated recommendations');
 }
 
 // Helper function to find closest drill size
 function findClosestDrill(decimal) {
     // Common tap drill sizes
     const drillSizes = {
+        0.0595: '#53',
+        0.0635: '#52',
+        0.0670: '#51',
+        0.0700: '#50',
+        0.0730: '#49',
+        0.0760: '#48',
+        0.0785: '#47',
+        0.0810: '#46',
+        0.0890: '#43',
+        0.0935: '#42',
+        0.0960: '#41',
+        0.0980: '#40',
+        0.1015: '#38',
+        0.1040: '#37',
+        0.1065: '#36',
+        0.1094: '#35',
+        0.1130: '#33',
+        0.1160: '#32',
+        0.1285: '#30',
+        0.1360: '#29',
+        0.1405: '#28',
+        0.1470: '#26',
+        0.1495: '#25',
+        0.1520: '#24',
+        0.1570: '#23',
+        0.1610: '#21',
+        0.1660: '#20',
+        0.1695: '#18',
+        0.1730: '#17',
+        0.1770: '#16',
+        0.1800: '#15',
+        0.1850: '#14',
+        0.1890: '#13',
+        0.1910: '#12',
+        0.1960: '#11',
         0.2010: '#7',
-        0.2130: '#4',
+        0.2040: '#6',
+        0.2055: '#5',
+        0.2090: '#4',
+        0.2130: '#3',
+        0.2188: '7/32',
+        0.2280: '#1',
+        0.2344: '15/64',
+        0.2460: 'B',
+        0.2500: '1/4',
         0.2570: 'F',
+        0.2656: '17/64',
         0.2720: 'I',
+        0.2810: 'J',
+        0.2812: '9/32',
+        0.2900: 'K',
+        0.2950: 'L',
         0.2969: 'J',
+        0.3020: 'M',
         0.3125: '5/16',
+        0.3160: 'P',
+        0.3230: 'Q',
+        0.3281: '21/64',
         0.3320: 'Q',
-        0.3437: '11/32',
+        0.3390: 'R',
+        0.3438: '11/32',
+        0.3465: 'S',
+        0.3580: 'T',
+        0.3594: '23/64',
+        0.3680: 'U',
         0.3750: '3/8',
+        0.3770: 'V',
+        0.3860: 'W',
+        0.3906: '25/64',
         0.3970: '25/64',
+        0.4040: 'X',
+        0.4062: '13/32',
+        0.4130: 'Y',
         0.4219: '27/64',
         0.4375: '7/16',
         0.4531: '29/64',
+        0.4688: '15/32',
         0.4844: '31/64',
+        0.5000: '1/2',
         0.5156: '33/64',
         0.5312: '17/32',
         0.5469: '35/64',
+        0.5625: '9/16',
         0.5781: '37/64',
+        0.5938: '19/32',
         0.6094: '39/64',
+        0.6250: '5/8',
         0.6406: '41/64',
         0.6562: '21/32',
         0.6719: '43/64',
+        0.6875: '11/16',
         0.7031: '45/64',
+        0.7188: '23/32',
         0.7344: '47/64',
+        0.7500: '3/4',
         0.7656: '49/64',
+        0.7812: '25/32',
+        0.7969: '51/64',
         0.8125: '13/16',
+        0.8281: '53/64',
         0.8438: '27/32',
+        0.8594: '55/64',
         0.8750: '7/8',
+        0.8906: '57/64',
+        0.9062: '29/32',
         0.9219: '59/64',
-        0.9375: '15/16'
+        0.9375: '15/16',
+        0.9531: '61/64',
+        0.9688: '31/32',
+        0.9844: '63/64',
+        1.0000: '1'
     };
     
     let closest = 0;
