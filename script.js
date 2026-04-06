@@ -144,15 +144,33 @@ function setupEventListeners() {
     document.getElementById('loadLibraryBtn').addEventListener('click', importLibrary);
 
     // Tap size selector and thread engagement slider
-    // Smart thread depth recommendations
-    document.getElementById('tapSize').addEventListener('change', updateThreadDepthRecommendation);
-    document.getElementById('holeType')?.addEventListener('change', updateThreadDepthRecommendation);
+    document.getElementById('tapSize').addEventListener('change', () => {
+        // Trigger slider to recalculate thread depth for new tap size
+        const sliderEvent = new Event('input');
+        document.getElementById('threadEngagement')?.dispatchEvent(sliderEvent);
+    });
     document.getElementById('tapType').addEventListener('change', updateTapRecommendations);
     document.getElementById('threadEngagement')?.addEventListener('input', (e) => {
-        document.getElementById('threadEngagementValue').textContent = e.target.value + '%';
+        const percentage = parseFloat(e.target.value);
+        const tapSizeSelect = document.getElementById('tapSize');
+        const threadDepthInput = document.getElementById('threadDepth');
+        
+        if (!tapSizeSelect || !threadDepthInput || !tapSizeSelect.value) return;
+        
+        const [tapDiameter, tpiOrPitch] = tapSizeSelect.value.split(',').map(parseFloat);
+        
+        // Calculate thread depth based on percentage
+        // 50% = 0.5x diameter, 100% = 1.5x diameter
+        const minDepth = tapDiameter * 0.5;
+        const maxDepth = tapDiameter * 1.5;
+        const threadDepth = minDepth + ((percentage - 50) / 50) * (maxDepth - minDepth);
+        
+        // Update the input and slider display
+        threadDepthInput.value = threadDepth.toFixed(3);
+        document.getElementById('threadEngagementValue').textContent = threadDepth.toFixed(3) + '"';
+        
         updateTapRecommendations();
     });
-    document.getElementById('threadDepth')?.addEventListener('input', updateTapRecommendations);
     
     // Update tap info when material changes
     document.getElementById('workMaterial').addEventListener('change', () => {
@@ -198,6 +216,12 @@ function updateUIForMachineType() {
         if (sfmGroup) sfmGroup.style.display = 'none';
         if (depthOfCutGroup) depthOfCutGroup.style.display = 'none';
         if (widthOfCutGroup) widthOfCutGroup.style.display = 'none';
+        // Initialize thread depth from slider
+        const threadEngagementSlider = document.getElementById('threadEngagement');
+        if (threadEngagementSlider) {
+            const sliderEvent = new Event('input');
+            threadEngagementSlider.dispatchEvent(sliderEvent);
+        }
         // Update tap recommendations immediately
         updateTapRecommendations();
     } else {
@@ -604,27 +628,14 @@ function updateTapRecommendations() {
     
     const tapDrill = tapDiameter - (threadDepthConstant / tpi);
     
-    // Get recommended SFM based on material and tap type
-    const speedFactor = tapSpeedFactors[workMaterial]?.[tapType] || 0.5;
-    const baseSFM = materialDatabase[workMaterial]?.carbide?.sfm || 500;
-    const recommendedSFM = Math.round(baseSFM * speedFactor);
+    // ALWAYS use 10 IPM feed rate for tapping (safe for all materials)
+    const targetFeedRate = 10; // IPM
     
-    // Calculate RPM: RPM = (SFM × 12) / (π × D)
-    // Calculate RPM based on metric/imperial
-    let rpm;
-    if (isMetric) {
-        // For metric: use the pitch directly
-        // Target feed rate of ~10 IPM for most taps
-        const targetFeedRate = 10; // IPM
-        rpm = Math.round(targetFeedRate * tpi);
-    } else {
-        // For imperial: use SFM but keep it reasonable
-        const conservativeSFM = recommendedSFM * 0.3; // Much slower for safety
-        rpm = Math.round((conservativeSFM * 12) / (Math.PI * tapDiameter));
-    }
+    // Calculate RPM from feed rate: RPM = Feed Rate × TPI
+    const rpm = Math.round(targetFeedRate * tpi);
     
-    // Calculate feed rate: IPM = RPM / TPI
-    const feedRate = rpm / tpi;
+    // Feed rate is our constant target
+    const feedRate = targetFeedRate;
     
     // Calculate cycle time (in and out): seconds
     const cycleTime = ((threadDepth / feedRate) * 60 * 2).toFixed(1);
@@ -643,7 +654,7 @@ function updateTapRecommendations() {
     if (recTapDrill) recTapDrill.textContent = `${drillFraction} (${tapDrill.toFixed(4)}")`;
     if (recRPM) recRPM.textContent = `${rpm} RPM`;
     if (recFeedRate) recFeedRate.textContent = `${feedRate.toFixed(2)} IPM`;
-    if (recCycleTime) recCycleTime.textContent = `${cycleTime} sec`;
+    if (recCycleTime) recCycleTime.textContent = 'N/A';
     
     console.log('Updated recommendations');
 }
@@ -765,48 +776,6 @@ function findClosestDrill(decimal) {
         1.0000: '1'
     };
 
-    // Smart Thread Depth Recommendation
-function updateThreadDepthRecommendation() {
-    const tapSizeSelect = document.getElementById('tapSize');
-    const holeTypeSelect = document.getElementById('holeType');
-    const threadDepthInput = document.getElementById('threadDepth');
-    
-    if (!tapSizeSelect || !holeTypeSelect || !threadDepthInput) return;
-    
-    const [tapDiameter, tpiOrPitch] = tapSizeSelect.value.split(',').map(parseFloat);
-    const holeType = holeTypeSelect.value;
-    
-    let recommendedDepth;
-    let maxDepth;
-    let minDepth = tapDiameter * 0.5; // Minimum: 0.5x diameter
-    
-    if (holeType === 'blind') {
-        // Blind holes: 1x to 1.5x diameter max
-        recommendedDepth = tapDiameter * 1.0; // Standard: 1x diameter
-        maxDepth = tapDiameter * 1.5; // Maximum: 1.5x diameter
-    } else {
-        // Through holes: 1.5x to 2x diameter
-        recommendedDepth = tapDiameter * 1.5; // Standard: 1.5x diameter  
-        maxDepth = tapDiameter * 3.0; // Maximum: 3x diameter (for very deep threads)
-    }
-    
-    // Set the value and limits
-    threadDepthInput.value = recommendedDepth.toFixed(3);
-    threadDepthInput.min = minDepth.toFixed(3);
-    threadDepthInput.max = maxDepth.toFixed(3);
-    threadDepthInput.step = (tapDiameter * 0.125).toFixed(3); // Step size: 1/8 diameter
-    
-    // Update the helper text
-    const helperText = threadDepthInput.nextElementSibling;
-    if (helperText && helperText.tagName === 'SMALL') {
-        if (holeType === 'blind') {
-            helperText.textContent = `Blind hole: ${minDepth.toFixed(3)}" min, ${maxDepth.toFixed(3)}" max (1x-1.5x diameter)`;
-        } else {
-            helperText.textContent = `Through hole: ${minDepth.toFixed(3)}" min, ${maxDepth.toFixed(3)}" max`;
-        }
-    }
-}
-    
     let closest = 0;
     let closestName = '';
     let minDiff = 999;
