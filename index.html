@@ -65,11 +65,6 @@
                         <span class="machine-icon">🔨</span>
                         <span class="machine-name">TAP</span>
                     </button>
-                    <a href="cad.html" target="_blank" class="machine-btn machine-btn-cad">
-                        <span class="machine-icon">📐</span>
-                        <span class="machine-name">CAD</span>
-                        <span class="cad-badge">↗</span>
-                    </a>
                 </div>
             </div>
 
@@ -172,43 +167,64 @@
                         <div class="input-group">
                             <label for="tapSize">Tap Size</label>
                             <select id="tapSize">
-                                <option value="custom">Custom Size</option>
                                 <optgroup label="Fractional - Coarse (UNC)">
+                                    <option value="0.0730,64">#4-40 UNC</option>
+                                    <option value="0.0860,56">#6-32 UNC</option>
+                                    <option value="0.0990,48">#8-32 UNC</option>
+                                    <option value="0.1120,40">#10-24 UNC</option>
+                                    <option value="0.1380,32">#12-24 UNC</option>
                                     <option value="0.2500,20">1/4-20 UNC</option>
                                     <option value="0.3125,18">5/16-18 UNC</option>
                                     <option value="0.3750,16">3/8-16 UNC</option>
+                                    <option value="0.4375,14">7/16-14 UNC</option>
                                     <option value="0.5000,13" selected>1/2-13 UNC</option>
+                                    <option value="0.5625,12">9/16-12 UNC</option>
                                     <option value="0.6250,11">5/8-11 UNC</option>
                                     <option value="0.7500,10">3/4-10 UNC</option>
                                     <option value="0.8750,9">7/8-9 UNC</option>
                                     <option value="1.0000,8">1-8 UNC</option>
+                                    <option value="1.1250,7">1-1/8-7 UNC</option>
+                                    <option value="1.2500,7">1-1/4-7 UNC</option>
                                 </optgroup>
                                 <optgroup label="Fractional - Fine (UNF)">
+                                    <option value="0.0730,48">#4-48 UNF</option>
+                                    <option value="0.0860,40">#6-40 UNF</option>
+                                    <option value="0.0990,36">#8-36 UNF</option>
+                                    <option value="0.1120,32">#10-32 UNF</option>
+                                    <option value="0.1380,28">#12-28 UNF</option>
                                     <option value="0.2500,28">1/4-28 UNF</option>
                                     <option value="0.3125,24">5/16-24 UNF</option>
                                     <option value="0.3750,24">3/8-24 UNF</option>
+                                    <option value="0.4375,20">7/16-20 UNF</option>
                                     <option value="0.5000,20">1/2-20 UNF</option>
+                                    <option value="0.5625,18">9/16-18 UNF</option>
                                     <option value="0.6250,18">5/8-18 UNF</option>
                                     <option value="0.7500,16">3/4-16 UNF</option>
+                                    <option value="0.8750,14">7/8-14 UNF</option>
+                                    <option value="1.0000,12">1-12 UNF</option>
                                 </optgroup>
-                                <optgroup label="Metric">
+                                <optgroup label="Metric - Coarse">
+                                    <option value="0.1181,0.400">M3x0.5</option>
+                                    <option value="0.1575,0.630">M4x0.7</option>
+                                    <option value="0.1969,0.794">M5x0.8</option>
                                     <option value="0.2362,1.000">M6x1.0</option>
                                     <option value="0.3150,1.250">M8x1.25</option>
                                     <option value="0.3937,1.500">M10x1.5</option>
                                     <option value="0.4724,1.750">M12x1.75</option>
+                                    <option value="0.5512,2.000">M14x2.0</option>
                                     <option value="0.6299,2.000">M16x2.0</option>
+                                    <option value="0.7087,2.500">M18x2.5</option>
+                                    <option value="0.7874,2.500">M20x2.5</option>
+                                </optgroup>
+                                <optgroup label="Metric - Fine">
+                                    <option value="0.2362,0.750">M6x0.75</option>
+                                    <option value="0.3150,1.000">M8x1.0</option>
+                                    <option value="0.3937,1.250">M10x1.25</option>
+                                    <option value="0.4724,1.250">M12x1.25</option>
+                                    <option value="0.5512,1.500">M14x1.5</option>
+                                    <option value="0.6299,1.500">M16x1.5</option>
                                 </optgroup>
                             </select>
-                        </div>
-
-                        <div class="input-group" id="customTapDiameter" style="display: none;">
-                            <label for="tapDiameter">Tap Diameter (in)</label>
-                            <input type="number" id="tapDiameter" step="0.001" value="0.500" min="0.001">
-                        </div>
-
-                        <div class="input-group" id="customTapPitch" style="display: none;">
-                            <label for="tapPitch">Threads Per Inch (TPI)</label>
-                            <input type="number" id="tapPitch" step="0.001" value="13" min="0.1">
                         </div>
 
                         <div class="input-group">
@@ -222,27 +238,47 @@
                         </div>
 
                         <div class="input-group">
-                            <label for="holeType">Hole Type</label>
-                            <select id="holeType">
-                                <option value="through" selected>Through Hole</option>
-                                <option value="blind">Blind Hole</option>
-                            </select>
+                            <label for="threadEngagement">Thread Engagement</label>
+                            <div class="slider-container">
+                                <input type="range" id="threadEngagement" min="50" max="100" value="75" step="5">
+                                <div class="slider-labels">
+                                    <span>50%</span>
+                                    <span id="threadEngagementValue" class="slider-value">75%</span>
+                                    <span>100%</span>
+                                </div>
+                            </div>
+                            <small style="color: var(--text-dim); font-size: 11px; margin-top: 8px; display: block;">
+                                75% is standard for most applications
+                            </small>
                         </div>
 
                         <div class="input-group">
                             <label for="threadDepth">Thread Depth (in)</label>
-                            <input type="number" id="threadDepth" step="0.125" value="0.750" min="0.125">
-                            <small style="color: var(--text-dim); font-size: 11px; margin-top: 5px; display: block;">Depth of threads needed, not total hole depth</small>
+                            <input type="number" id="threadDepth" step="0.125" value="0.500" min="0.125">
+                            <small style="color: var(--text-dim); font-size: 11px; margin-top: 5px; display: block;">
+                                Depth of threads needed (not total hole depth)
+                            </small>
                         </div>
 
-                        <div class="tap-info-box">
-                            <div class="info-row">
-                                <span class="info-label">Tap Drill Size:</span>
-                                <span class="info-value" id="tapDrillInfo">---</span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label">Recommended Speed:</span>
-                                <span class="info-value" id="tapSpeedInfo">---</span>
+                        <div class="tap-recommendations">
+                            <h4>📋 Recommended Settings</h4>
+                            <div class="recommendation-grid">
+                                <div class="recommendation-item">
+                                    <span class="rec-label">Tap Drill:</span>
+                                    <span class="rec-value" id="recTapDrill">---</span>
+                                </div>
+                                <div class="recommendation-item">
+                                    <span class="rec-label">RPM:</span>
+                                    <span class="rec-value" id="recRPM">---</span>
+                                </div>
+                                <div class="recommendation-item">
+                                    <span class="rec-label">Feed Rate:</span>
+                                    <span class="rec-value" id="recFeedRate">---</span>
+                                </div>
+                                <div class="recommendation-item">
+                                    <span class="rec-label">Cycle Time:</span>
+                                    <span class="rec-value" id="recCycleTime">---</span>
+                                </div>
                             </div>
                         </div>
                     </div>
