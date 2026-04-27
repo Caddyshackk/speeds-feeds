@@ -126,6 +126,11 @@ h1 {
     gap: 15px;
 }
 
+.header-controls .btn {
+    min-width: 110px;
+    justify-content: center;
+}
+
 /* Buttons */
 .btn {
     padding: 12px 24px;
