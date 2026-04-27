@@ -272,12 +272,20 @@ function renderParameters() {
         }
     }).join('');
     
-    // Add input listeners
+    // GOOD - Only re-render when dropdown changes
     container.querySelectorAll('input, select').forEach(input => {
-        input.addEventListener('input', () => {
-            renderParameters(); // Re-render for conditional fields
-            drawPreview();
-        });
+        if (input.tagName === 'SELECT') {
+            // Dropdowns need re-render for conditional fields
+            input.addEventListener('change', () => {
+                renderParameters();
+                drawPreview();
+            });
+        } else {
+            // Number inputs just update preview
+            input.addEventListener('input', () => {
+                drawPreview(); // No renderParameters!
+            });
+        }
     });
 }
 
