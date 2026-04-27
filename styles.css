@@ -242,11 +242,14 @@ h1 {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 10px;
     cursor: pointer;
     transition: all 0.3s;
     color: var(--text-light);
     font-family: 'Rajdhani', sans-serif;
+    aspect-ratio: 1;
+    min-height: 120px;
 }
 
 .machine-btn:hover {
@@ -270,6 +273,85 @@ h1 {
     font-size: 14px;
     font-weight: 700;
     letter-spacing: 2px;
+}
+
+/* Chip Load Indicator */
+.chip-load-indicator {
+    margin-top: 10px;
+    padding: 15px;
+    background: rgba(91, 158, 255, 0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.indicator-bar {
+    position: relative;
+    height: 30px;
+    background: linear-gradient(90deg, 
+        #FF4757 0%, 
+        #FF4757 25%, 
+        #2ecc71 25%, 
+        #2ecc71 75%, 
+        #FFA502 75%, 
+        #FFA502 100%
+    );
+    border-radius: 15px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.indicator-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 0%;
+    background: rgba(255, 255, 255, 0.3);
+    border-right: 3px solid white;
+    transition: width 0.3s;
+}
+
+.indicator-message {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 5px;
+    border-radius: 5px;
+}
+
+.indicator-message.status-low {
+    background: rgba(255, 71, 87, 0.2);
+    color: #FF4757;
+}
+
+.indicator-message.status-good {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+}
+
+.indicator-message.status-high {
+    background: rgba(255, 165, 2, 0.2);
+    color: #FFA502;
+}
+
+/* Feed Per Rev Indicator (Lathe) */
+.feed-per-rev-indicator {
+    margin-top: 10px;
+    padding: 15px;
+    background: rgba(91, 158, 255, 0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.feed-per-rev-indicator .indicator-bar {
+    background: linear-gradient(90deg, 
+        #FF4757 0%, 
+        #FF4757 25%, 
+        #2ecc71 25%, 
+        #2ecc71 75%, 
+        #FFA502 75%, 
+        #FFA502 100%
+    );
 }
 
 /* Operation Buttons */
