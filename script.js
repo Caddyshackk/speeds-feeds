@@ -1,112 +1,176 @@
-// Material Database - SFM recommendations
-const materialDatabase = {
-    aluminum: {
-        hss: { sfm: 300, chipLoad: 0.003 },
-        carbide: { sfm: 800, chipLoad: 0.004 },
-        coated: { sfm: 1000, chipLoad: 0.005 },
-        ceramic: { sfm: 1200, chipLoad: 0.004 }
-    },
-    mild_steel: {
-        hss: { sfm: 90, chipLoad: 0.002 },
-        carbide: { sfm: 500, chipLoad: 0.003 },
-        coated: { sfm: 650, chipLoad: 0.0035 },
-        ceramic: { sfm: 800, chipLoad: 0.003 }
-    },
-    stainless: {
-        hss: { sfm: 60, chipLoad: 0.0015 },
-        carbide: { sfm: 350, chipLoad: 0.0025 },
-        coated: { sfm: 450, chipLoad: 0.003 },
-        ceramic: { sfm: 600, chipLoad: 0.0025 }
-    },
-    tool_steel: {
-        hss: { sfm: 70, chipLoad: 0.0015 },
-        carbide: { sfm: 400, chipLoad: 0.002 },
-        coated: { sfm: 500, chipLoad: 0.0025 },
-        ceramic: { sfm: 650, chipLoad: 0.002 }
-    },
-    titanium: {
-        hss: { sfm: 40, chipLoad: 0.001 },
-        carbide: { sfm: 250, chipLoad: 0.0015 },
-        coated: { sfm: 350, chipLoad: 0.002 },
-        ceramic: { sfm: 450, chipLoad: 0.0015 }
-    },
-    brass: {
-        hss: { sfm: 200, chipLoad: 0.004 },
-        carbide: { sfm: 600, chipLoad: 0.005 },
-        coated: { sfm: 800, chipLoad: 0.006 },
-        ceramic: { sfm: 1000, chipLoad: 0.005 }
-    },
-    plastic: {
-        hss: { sfm: 500, chipLoad: 0.005 },
-        carbide: { sfm: 1000, chipLoad: 0.006 },
-        coated: { sfm: 1200, chipLoad: 0.007 },
-        ceramic: { sfm: 1500, chipLoad: 0.006 }
-    }
+// State
+let currentMachine = 'mill';
+let currentOperation = 'circle-pocket';
+let generatedGCode = '';
+
+// Parameter definitions for each operation with tool compensation
+const operationParameters = {
+    // Mill Operations
+    'circle-pocket': [
+        { id: 'diameter', label: 'Diameter (in)', type: 'number', value: 2.000, step: 0.125 },
+        { id: 'totalDepth', label: 'Total Depth (in)', type: 'number', value: 0.500, step: 0.125 },
+        { id: 'depthPerPass', label: 'Depth Per Pass (in)', type: 'number', value: 0.125, step: 0.025 },
+        { id: 'toolDiameter', label: 'Tool Diameter (in)', type: 'number', value: 0.500, step: 0.125 },
+        { id: 'toolType', label: 'Tool Type', type: 'select', value: 'flat', options: [
+            { value: 'flat', label: 'Flat Endmill' },
+            { value: 'ball', label: 'Ball Endmill' },
+            { value: 'corner', label: 'Corner Radius' }
+        ]},
+        { id: 'cornerRadius', label: 'Corner/Ball Radius (in)', type: 'number', value: 0.0625, step: 0.0156, conditional: 'toolType:corner,ball' },
+        { id: 'feedRate', label: 'Feed Rate (IPM)', type: 'number', value: 20, step: 1 },
+        { id: 'rpm', label: 'Spindle RPM', type: 'number', value: 2500, step: 100 },
+        { id: 'centerX', label: 'Center X', type: 'number', value: 0, step: 0.125 },
+        { id: 'centerY', label: 'Center Y', type: 'number', value: 0, step: 0.125 }
+    ],
+    'circle-profile': [
+        { id: 'diameter', label: 'Diameter (in)', type: 'number', value: 2.000, step: 0.125 },
+        { id: 'totalDepth', label: 'Total Depth (in)', type: 'number', value: 0.500, step: 0.125 },
+        { id: 'depthPerPass', label: 'Depth Per Pass (in)', type: 'number', value: 0.125, step: 0.025 },
+        { id: 'toolDiameter', label: 'Tool Diameter (in)', type: 'number', value: 0.500, step: 0.125 },
+        { id: 'toolType', label: 'Tool Type', type: 'select', value: 'flat', options: [
+            { value: 'flat', label: 'Flat Endmill' },
+            { value: 'ball', label: 'Ball Endmill' },
+            { value: 'corner', label: 'Corner Radius' }
+        ]},
+        { id: 'cornerRadius', label: 'Corner/Ball Radius (in)', type: 'number', value: 0.0625, step: 0.0156, conditional: 'toolType:corner,ball' },
+        { id: 'side', label: 'Cut Side', type: 'select', value: 'outside', options: [
+            { value: 'outside', label: 'Outside' },
+            { value: 'inside', label: 'Inside' }
+        ]},
+        { id: 'useCompensation', label: 'Use G41/G42', type: 'select', value: 'yes', options: [
+            { value: 'yes', label: 'Yes (Recommended)' },
+            { value: 'no', label: 'No (Manual Offset)' }
+        ]},
+        { id: 'feedRate', label: 'Feed Rate (IPM)', type: 'number', value: 20, step: 1 },
+        { id: 'rpm', label: 'Spindle RPM', type: 'number', value: 2500, step: 100 },
+        { id: 'centerX', label: 'Center X', type: 'number', value: 0, step: 0.125 },
+        { id: 'centerY', label: 'Center Y', type: 'number', value: 0, step: 0.125 }
+    ],
+    'rectangle-pocket': [
+        { id: 'length', label: 'Length (in)', type: 'number', value: 4.000, step: 0.125 },
+        { id: 'width', label: 'Width (in)', type: 'number', value: 2.000, step: 0.125 },
+        { id: 'totalDepth', label: 'Total Depth (in)', type: 'number', value: 0.500, step: 0.125 },
+        { id: 'depthPerPass', label: 'Depth Per Pass (in)', type: 'number', value: 0.125, step: 0.025 },
+        { id: 'toolDiameter', label: 'Tool Diameter (in)', type: 'number', value: 0.500, step: 0.125 },
+        { id: 'toolType', label: 'Tool Type', type: 'select', value: 'flat', options: [
+            { value: 'flat', label: 'Flat Endmill' },
+            { value: 'ball', label: 'Ball Endmill' },
+            { value: 'corner', label: 'Corner Radius' }
+        ]},
+        { id: 'cornerRadius', label: 'Corner/Ball Radius (in)', type: 'number', value: 0.0625, step: 0.0156, conditional: 'toolType:corner,ball' },
+        { id: 'feedRate', label: 'Feed Rate (IPM)', type: 'number', value: 20, step: 1 },
+        { id: 'rpm', label: 'Spindle RPM', type: 'number', value: 2500, step: 100 },
+        { id: 'centerX', label: 'Center X', type: 'number', value: 0, step: 0.125 },
+        { id: 'centerY', label: 'Center Y', type: 'number', value: 0, step: 0.125 }
+    ],
+    'rectangle-profile': [
+        { id: 'length', label: 'Length (in)', type: 'number', value: 4.000, step: 0.125 },
+        { id: 'width', label: 'Width (in)', type: 'number', value: 2.000, step: 0.125 },
+        { id: 'totalDepth', label: 'Total Depth (in)', type: 'number', value: 0.500, step: 0.125 },
+        { id: 'depthPerPass', label: 'Depth Per Pass (in)', type: 'number', value: 0.125, step: 0.025 },
+        { id: 'toolDiameter', label: 'Tool Diameter (in)', type: 'number', value: 0.500, step: 0.125 },
+        { id: 'toolType', label: 'Tool Type', type: 'select', value: 'flat', options: [
+            { value: 'flat', label: 'Flat Endmill' },
+            { value: 'ball', label: 'Ball Endmill' },
+            { value: 'corner', label: 'Corner Radius' }
+        ]},
+        { id: 'cornerRadius', label: 'Corner/Ball Radius (in)', type: 'number', value: 0.0625, step: 0.0156, conditional: 'toolType:corner,ball' },
+        { id: 'side', label: 'Cut Side', type: 'select', value: 'outside', options: [
+            { value: 'outside', label: 'Outside' },
+            { value: 'inside', label: 'Inside' }
+        ]},
+        { id: 'useCompensation', label: 'Use G41/G42', type: 'select', value: 'yes', options: [
+            { value: 'yes', label: 'Yes (Recommended)' },
+            { value: 'no', label: 'No (Manual Offset)' }
+        ]},
+        { id: 'feedRate', label: 'Feed Rate (IPM)', type: 'number', value: 20, step: 1 },
+        { id: 'rpm', label: 'Spindle RPM', type: 'number', value: 2500, step: 100 },
+        { id: 'centerX', label: 'Center X', type: 'number', value: 0, step: 0.125 },
+        { id: 'centerY', label: 'Center Y', type: 'number', value: 0, step: 0.125 }
+    ],
+    'bolt-circle': [
+        { id: 'boltCircleDia', label: 'Bolt Circle Diameter (in)', type: 'number', value: 3.000, step: 0.125 },
+        { id: 'holeDiameter', label: 'Hole Diameter (in)', type: 'number', value: 0.375, step: 0.0625 },
+        { id: 'numHoles', label: 'Number of Holes', type: 'number', value: 6, step: 1 },
+        { id: 'startAngle', label: 'Start Angle (deg)', type: 'number', value: 0, step: 15 },
+        { id: 'totalDepth', label: 'Total Depth (in)', type: 'number', value: 0.500, step: 0.125 },
+        { id: 'peckDepth', label: 'Peck Depth (in)', type: 'number', value: 0.250, step: 0.125 },
+        { id: 'feedRate', label: 'Feed Rate (IPM)', type: 'number', value: 10, step: 1 },
+        { id: 'rpm', label: 'Spindle RPM', type: 'number', value: 2000, step: 100 },
+        { id: 'centerX', label: 'Center X', type: 'number', value: 0, step: 0.125 },
+        { id: 'centerY', label: 'Center Y', type: 'number', value: 0, step: 0.125 }
+    ],
+    'slot': [
+        { id: 'length', label: 'Length (in)', type: 'number', value: 3.000, step: 0.125 },
+        { id: 'width', label: 'Width (in)', type: 'number', value: 0.500, step: 0.125 },
+        { id: 'totalDepth', label: 'Total Depth (in)', type: 'number', value: 0.500, step: 0.125 },
+        { id: 'depthPerPass', label: 'Depth Per Pass (in)', type: 'number', value: 0.125, step: 0.025 },
+        { id: 'toolDiameter', label: 'Tool Diameter (in)', type: 'number', value: 0.500, step: 0.125 },
+        { id: 'feedRate', label: 'Feed Rate (IPM)', type: 'number', value: 20, step: 1 },
+        { id: 'rpm', label: 'Spindle RPM', type: 'number', value: 2500, step: 100 },
+        { id: 'centerX', label: 'Center X', type: 'number', value: 0, step: 0.125 },
+        { id: 'centerY', label: 'Center Y', type: 'number', value: 0, step: 0.125 }
+    ],
+    
+    // Lathe Operations with nose radius
+    'face': [
+        { id: 'diameter', label: 'Stock Diameter (in)', type: 'number', value: 2.000, step: 0.125 },
+        { id: 'totalDepth', label: 'Face Depth (in)', type: 'number', value: 0.125, step: 0.025 },
+        { id: 'depthPerPass', label: 'Depth Per Pass (in)', type: 'number', value: 0.025, step: 0.005 },
+        { id: 'noseRadius', label: 'Tool Nose Radius (in)', type: 'number', value: 0.031, step: 0.0156 },
+        { id: 'useCompensation', label: 'Use G41/G42', type: 'select', value: 'yes', options: [
+            { value: 'yes', label: 'Yes (Recommended)' },
+            { value: 'no', label: 'No (Manual Offset)' }
+        ]},
+        { id: 'feedRate', label: 'Feed Rate (IPR)', type: 'number', value: 0.010, step: 0.001 },
+        { id: 'rpm', label: 'Spindle RPM', type: 'number', value: 1000, step: 100 }
+    ],
+    'turn-od': [
+        { id: 'startDiameter', label: 'Start Diameter (in)', type: 'number', value: 2.000, step: 0.125 },
+        { id: 'endDiameter', label: 'End Diameter (in)', type: 'number', value: 1.500, step: 0.125 },
+        { id: 'length', label: 'Length (in)', type: 'number', value: 3.000, step: 0.125 },
+        { id: 'depthPerPass', label: 'Depth Per Pass (in)', type: 'number', value: 0.050, step: 0.010 },
+        { id: 'noseRadius', label: 'Tool Nose Radius (in)', type: 'number', value: 0.031, step: 0.0156 },
+        { id: 'useCompensation', label: 'Use G41/G42', type: 'select', value: 'yes', options: [
+            { value: 'yes', label: 'Yes (Recommended)' },
+            { value: 'no', label: 'No (Manual Offset)' }
+        ]},
+        { id: 'feedRate', label: 'Feed Rate (IPR)', type: 'number', value: 0.010, step: 0.001 },
+        { id: 'rpm', label: 'Spindle RPM', type: 'number', value: 1000, step: 100 }
+    ],
+    'groove': [
+        { id: 'diameter', label: 'Diameter (in)', type: 'number', value: 2.000, step: 0.125 },
+        { id: 'grooveWidth', label: 'Groove Width (in)', type: 'number', value: 0.125, step: 0.0625 },
+        { id: 'grooveDepth', label: 'Groove Depth (in)', type: 'number', value: 0.100, step: 0.025 },
+        { id: 'zPosition', label: 'Z Position', type: 'number', value: -1.000, step: 0.125 },
+        { id: 'feedRate', label: 'Feed Rate (IPR)', type: 'number', value: 0.005, step: 0.001 },
+        { id: 'rpm', label: 'Spindle RPM', type: 'number', value: 800, step: 100 }
+    ],
+    'counterbore': [
+        { id: 'boreDiameter', label: 'Bore Diameter (in)', type: 'number', value: 1.000, step: 0.125 },
+        { id: 'boreDepth', label: 'Bore Depth (in)', type: 'number', value: 0.500, step: 0.125 },
+        { id: 'depthPerPass', label: 'Depth Per Pass (in)', type: 'number', value: 0.050, step: 0.010 },
+        { id: 'noseRadius', label: 'Tool Nose Radius (in)', type: 'number', value: 0.031, step: 0.0156 },
+        { id: 'useCompensation', label: 'Use G41/G42', type: 'select', value: 'yes', options: [
+            { value: 'yes', label: 'Yes (Recommended)' },
+            { value: 'no', label: 'No (Manual Offset)' }
+        ]},
+        { id: 'feedRate', label: 'Feed Rate (IPR)', type: 'number', value: 0.008, step: 0.001 },
+        { id: 'rpm', label: 'Spindle RPM', type: 'number', value: 1200, step: 100 }
+    ],
+    'thread': [
+        { id: 'majorDiameter', label: 'Major Diameter (in)', type: 'number', value: 0.500, step: 0.0625 },
+        { id: 'tpi', label: 'Threads Per Inch', type: 'number', value: 13, step: 1 },
+        { id: 'threadLength', label: 'Thread Length (in)', type: 'number', value: 1.000, step: 0.125 },
+        { id: 'rpm', label: 'Spindle RPM', type: 'number', value: 300, step: 50 }
+    ]
 };
-
-// Material specific cutting power constants (HP per cubic inch per minute)
-const materialPowerConstants = {
-    aluminum: 0.3,
-    mild_steel: 0.8,
-    stainless: 1.2,
-    tool_steel: 1.4,
-    titanium: 1.6,
-    brass: 0.4,
-    plastic: 0.2
-};
-
-// Lathe feed recommendations (inches per revolution)
-const latheFeedDatabase = {
-    aluminum: { roughing: 0.020, finishing: 0.005 },
-    mild_steel: { roughing: 0.015, finishing: 0.003 },
-    stainless: { roughing: 0.012, finishing: 0.003 },
-    tool_steel: { roughing: 0.010, finishing: 0.002 },
-    titanium: { roughing: 0.008, finishing: 0.002 },
-    brass: { roughing: 0.020, finishing: 0.005 },
-    plastic: { roughing: 0.025, finishing: 0.005 }
-};
-
-// Chip load ranges for different tool diameters (min, optimal, max)
-const chipLoadRanges = {
-    // Ranges based on tool diameter in inches
-    small: { min: 0.0005, optimal: 0.001, max: 0.002 },   // < 0.125"
-    medium: { min: 0.001, optimal: 0.003, max: 0.005 },   // 0.125" - 0.5"
-    large: { min: 0.003, optimal: 0.006, max: 0.010 }     // > 0.5"
-};
-
-// Tapping speed recommendations (% of drilling speed)
-const tapSpeedFactors = {
-    aluminum: { hand: 0.5, spiral_point: 0.7, spiral_flute: 0.6, form: 0.4 },
-    mild_steel: { hand: 0.3, spiral_point: 0.5, spiral_flute: 0.4, form: 0.3 },
-    stainless: { hand: 0.2, spiral_point: 0.4, spiral_flute: 0.3, form: 0.25 },
-    tool_steel: { hand: 0.2, spiral_point: 0.35, spiral_flute: 0.3, form: 0.2 },
-    titanium: { hand: 0.15, spiral_point: 0.3, spiral_flute: 0.25, form: 0.15 },
-    brass: { hand: 0.6, spiral_point: 0.8, spiral_flute: 0.7, form: 0.5 },
-    plastic: { hand: 0.7, spiral_point: 0.9, spiral_flute: 0.8, form: 0.6 }
-};
-
-let currentMachineType = 'mill';
-let customLibrary = [];
-
-// Load custom library from localStorage
-function loadCustomLibrary() {
-    const saved = localStorage.getItem('customToolLibrary');
-    if (saved) {
-        customLibrary = JSON.parse(saved);
-        renderCustomLibrary();
-    }
-}
-
-// Save custom library to localStorage
-function saveCustomLibrary() {
-    localStorage.setItem('customToolLibrary', JSON.stringify(customLibrary));
-}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    loadCustomLibrary();
     setupEventListeners();
-    updateUIForMachineType();
+    renderParameters();
+    drawPreview();
 });
 
 function setupEventListeners() {
@@ -115,679 +179,770 @@ function setupEventListeners() {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.machine-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            currentMachineType = btn.dataset.type;
-            updateUIForMachineType();
+            currentMachine = btn.dataset.type;
+            switchMachine();
         });
     });
 
-    // Calculate button
-    document.getElementById('calculateBtn').addEventListener('click', calculate);
-
-    // Hint buttons
-    document.getElementById('sfmHint').addEventListener('click', applySFMRecommendation);
-    document.getElementById('chipLoadHint')?.addEventListener('click', applyChipLoadRecommendation);
-    document.getElementById('feedPerRevHint')?.addEventListener('click', applyFeedPerRevRecommendation);
-
-    // Save tool button
-    document.getElementById('saveToolBtn').addEventListener('click', () => {
-        document.getElementById('saveModal').style.display = 'block';
+    // Operation buttons
+    document.querySelectorAll('.operation-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const container = btn.closest('.operation-grid');
+            container.querySelectorAll('.operation-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentOperation = btn.dataset.operation;
+            renderParameters();
+            drawPreview();
+        });
     });
 
-    // Modal buttons
-    document.getElementById('confirmSaveBtn').addEventListener('click', saveCurrentTool);
-    document.getElementById('cancelSaveBtn').addEventListener('click', () => {
-        document.getElementById('saveModal').style.display = 'none';
-    });
+    // Generate button
+    document.getElementById('generateBtn').addEventListener('click', generateGCode);
 
-    // Library buttons
-    document.getElementById('saveLibraryBtn').addEventListener('click', exportLibrary);
-    document.getElementById('loadLibraryBtn').addEventListener('click', importLibrary);
+    // Copy button
+    document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
 
-    // Tap size selector and thread engagement slider
-    document.getElementById('tapSize').addEventListener('change', () => {
-        // Trigger slider to recalculate thread depth for new tap size
-        const sliderEvent = new Event('input');
-        document.getElementById('threadEngagement')?.dispatchEvent(sliderEvent);
-    });
-    document.getElementById('tapType').addEventListener('change', updateTapRecommendations);
-    document.getElementById('threadEngagement')?.addEventListener('input', (e) => {
-        const percentage = parseFloat(e.target.value);
-        const tapSizeSelect = document.getElementById('tapSize');
-        const threadDepthInput = document.getElementById('threadDepth');
-        
-        if (!tapSizeSelect || !threadDepthInput || !tapSizeSelect.value) return;
-        
-        const [tapDiameter, tpiOrPitch] = tapSizeSelect.value.split(',').map(parseFloat);
-        
-        // Calculate thread depth based on percentage
-        // 50% = 0.5x diameter, 100% = 1.5x diameter
-        const minDepth = tapDiameter * 0.5;
-        const maxDepth = tapDiameter * 1.5;
-        const threadDepth = minDepth + ((percentage - 50) / 50) * (maxDepth - minDepth);
-        
-        // Update the input and slider display
-        threadDepthInput.value = threadDepth.toFixed(3);
-        document.getElementById('threadEngagementValue').textContent = threadDepth.toFixed(3) + '"';
-        
-        updateTapRecommendations();
-    });
-    
-    // Update tap info when material changes
-    document.getElementById('workMaterial').addEventListener('change', () => {
-        if (currentMachineType === 'tap') updateTapRecommendations();
-    });
-
-    // Chip load checker - update on input
-    document.getElementById('chipLoad')?.addEventListener('input', updateChipLoadIndicator);
-    document.getElementById('toolDiameter')?.addEventListener('input', updateChipLoadIndicator);
-    
-    // Feed per rev checker for lathe
-    document.getElementById('feedPerRev')?.addEventListener('input', updateFeedPerRevIndicator);
+    // Download button
+    document.getElementById('downloadBtn').addEventListener('click', downloadGCode);
 }
 
-function updateUIForMachineType() {
-    const millDrillInputs = document.getElementById('millDrillInputs');
-    const latheInputs = document.getElementById('latheInputs');
-    const tapInputs = document.getElementById('tapInputs');
-    const tapDrillResult = document.getElementById('tapDrillResult');
+function switchMachine() {
+    const millOps = document.getElementById('millOperations');
+    const latheOps = document.getElementById('latheOperations');
     
-    // Elements to hide in tap mode
-    const sfmGroup = document.getElementById('sfmGroup');
-    const depthOfCutGroup = document.getElementById('depthOfCutGroup');
-    const widthOfCutGroup = document.getElementById('widthOfCutGroup');
+    if (currentMachine === 'mill') {
+        millOps.style.display = 'grid';
+        latheOps.style.display = 'none';
+        currentOperation = 'circle-pocket';
+        millOps.querySelector('.operation-btn').classList.add('active');
+    } else {
+        millOps.style.display = 'none';
+        latheOps.style.display = 'grid';
+        currentOperation = 'face';
+        latheOps.querySelector('.operation-btn').classList.add('active');
+    }
+    
+    renderParameters();
+    drawPreview();
+}
 
-    // Hide all first
-    millDrillInputs.style.display = 'none';
-    latheInputs.style.display = 'none';
-    tapInputs.style.display = 'none';
-    if (tapDrillResult) tapDrillResult.style.display = 'none';
-
-    if (currentMachineType === 'lathe') {
-        latheInputs.style.display = 'block';
-        if (sfmGroup) sfmGroup.style.display = 'flex';
-        if (depthOfCutGroup) depthOfCutGroup.style.display = 'flex';
-        if (widthOfCutGroup) widthOfCutGroup.style.display = 'flex';
-        // Update feed per rev indicator
-        updateFeedPerRevIndicator();
-    } else if (currentMachineType === 'tap') {
-        tapInputs.style.display = 'block';
-        if (tapDrillResult) tapDrillResult.style.display = 'flex';
-        // Hide SFM, DOC, WOC for tapping
-        if (sfmGroup) sfmGroup.style.display = 'none';
-        if (depthOfCutGroup) depthOfCutGroup.style.display = 'none';
-        if (widthOfCutGroup) widthOfCutGroup.style.display = 'none';
-        // Initialize thread depth from slider
-        const threadEngagementSlider = document.getElementById('threadEngagement');
-        if (threadEngagementSlider) {
-            const sliderEvent = new Event('input');
-            threadEngagementSlider.dispatchEvent(sliderEvent);
+function renderParameters() {
+    const container = document.getElementById('parametersContainer');
+    const params = operationParameters[currentOperation];
+    
+    // Store current values before re-rendering
+    const currentValues = {};
+    params.forEach(param => {
+        const element = document.getElementById(param.id);
+        if (element) {
+            currentValues[param.id] = element.value;
         }
-        // Update tap recommendations immediately
-        updateTapRecommendations();
-    } else {
-        millDrillInputs.style.display = 'block';
-        if (sfmGroup) sfmGroup.style.display = 'flex';
-        if (depthOfCutGroup) depthOfCutGroup.style.display = 'flex';
-        if (widthOfCutGroup) widthOfCutGroup.style.display = 'flex';
-        // Show chip load indicator for mill/drill
-        updateChipLoadIndicator();
-    }
-}
-
-function calculate() {
-    let rpm, feedRate, mrr, power;
-
-    const toolMaterial = document.getElementById('toolMaterial').value;
-    const workMaterial = document.getElementById('workMaterial').value;
-    const sfm = parseFloat(document.getElementById('sfm').value);
-    const depthOfCut = parseFloat(document.getElementById('depthOfCut').value);
-    const widthOfCut = parseFloat(document.getElementById('widthOfCut').value);
-
-    if (currentMachineType === 'lathe') {
-        const workDiameter = parseFloat(document.getElementById('workDiameter').value);
-        const feedPerRev = parseFloat(document.getElementById('feedPerRev').value);
-
-        // Calculate RPM: RPM = (SFM × 12) / (π × D)
-        rpm = (sfm * 12) / (Math.PI * workDiameter);
-
-        // Feed Rate: IPM = RPM × Feed/Rev
-        feedRate = rpm * feedPerRev;
-
-        // MRR for turning: MRR = 12 × RPM × Feed/Rev × Depth of Cut
-        mrr = 12 * rpm * feedPerRev * depthOfCut;
-
-    } else if (currentMachineType === 'tap') {
-        // Tapping - values are auto-calculated in updateTapRecommendations
-        // No need to calculate here, just set dummy values so results don't show errors
-        rpm = 0;
-        feedRate = 0;
-        mrr = 0;
-        power = 0;
-    } else {
-        // Mill or Drill
-        const toolDiameter = parseFloat(document.getElementById('toolDiameter').value);
-        const numFlutes = parseInt(document.getElementById('numFlutes').value);
-        const chipLoad = parseFloat(document.getElementById('chipLoad').value);
-
-        // Calculate RPM: RPM = (SFM × 12) / (π × D)
-        rpm = (sfm * 12) / (Math.PI * toolDiameter);
-
-        // Feed Rate: IPM = RPM × Flutes × Chip Load
-        feedRate = rpm * numFlutes * chipLoad;
-
-        // MRR: MRR = Feed Rate × Depth × Width
-        mrr = feedRate * depthOfCut * widthOfCut;
-    }
-
-    // Calculate power requirement
-    const powerConstant = materialPowerConstants[workMaterial] || 0.8;
-    power = mrr * powerConstant;
-
-    // Display results
-    document.getElementById('rpmResult').textContent = `${Math.round(rpm)} RPM`;
-    document.getElementById('feedRateResult').textContent = `${feedRate.toFixed(2)} IPM`;
-    document.getElementById('mrrResult').textContent = currentMachineType === 'tap' ? 'N/A' : `${mrr.toFixed(3)}`;
-    document.getElementById('powerResult').textContent = currentMachineType === 'tap' ? 'N/A' : `${power.toFixed(2)} HP`;
-}
-
-function applySFMRecommendation() {
-    const toolMaterial = document.getElementById('toolMaterial').value;
-    const workMaterial = document.getElementById('workMaterial').value;
+    });
     
-    const recommended = materialDatabase[workMaterial][toolMaterial].sfm;
-    document.getElementById('sfm').value = recommended;
-}
-
-function applyChipLoadRecommendation() {
-    const toolMaterial = document.getElementById('toolMaterial').value;
-    const workMaterial = document.getElementById('workMaterial').value;
-    
-    const recommended = materialDatabase[workMaterial][toolMaterial].chipLoad;
-    document.getElementById('chipLoad').value = recommended.toFixed(4);
-}
-
-function applyFeedPerRevRecommendation() {
-    const workMaterial = document.getElementById('workMaterial').value;
-    const recommended = latheFeedDatabase[workMaterial].roughing;
-    document.getElementById('feedPerRev').value = recommended.toFixed(3);
-}
-
-function saveCurrentTool() {
-    const toolName = document.getElementById('toolName').value.trim();
-    
-    if (!toolName) {
-        alert('Please enter a tool name');
-        return;
-    }
-
-    const tool = {
-        id: Date.now(),
-        name: toolName,
-        machineType: currentMachineType,
-        toolMaterial: document.getElementById('toolMaterial').value,
-        workMaterial: document.getElementById('workMaterial').value,
-        sfm: document.getElementById('sfm').value,
-        depthOfCut: document.getElementById('depthOfCut').value,
-        widthOfCut: document.getElementById('widthOfCut').value
-    };
-
-    if (currentMachineType === 'lathe') {
-        tool.workDiameter = document.getElementById('workDiameter').value;
-        tool.feedPerRev = document.getElementById('feedPerRev').value;
-    } else {
-        tool.toolDiameter = document.getElementById('toolDiameter').value;
-        tool.numFlutes = document.getElementById('numFlutes').value;
-        tool.chipLoad = document.getElementById('chipLoad').value;
-    }
-
-    customLibrary.push(tool);
-    saveCustomLibrary();
-    renderCustomLibrary();
-
-    document.getElementById('saveModal').style.display = 'none';
-    document.getElementById('toolName').value = '';
-}
-
-function renderCustomLibrary() {
-    const container = document.getElementById('customLibrary');
-    
-    if (customLibrary.length === 0) {
-        container.innerHTML = '<p class="empty-state">No custom tools saved yet</p>';
-        return;
-    }
-
-    container.innerHTML = customLibrary.map(tool => {
-        const machineIcon = tool.machineType === 'mill' ? '⚙️' : 
-                           tool.machineType === 'lathe' ? '🔧' : '🔩';
+    container.innerHTML = params.map(param => {
+        // Check conditional rendering
+        if (param.conditional) {
+            const [condField, condValues] = param.conditional.split(':');
+            const condValue = currentValues[condField] || params.find(p => p.id === condField)?.value;
+            if (!condValue || !condValues.split(',').includes(condValue)) {
+                return '';
+            }
+        }
         
-        let details = `${tool.toolMaterial.toUpperCase()} - ${formatMaterialName(tool.workMaterial)}`;
-        if (tool.machineType === 'lathe') {
-            details += ` | Ø${tool.workDiameter}" | ${tool.feedPerRev} IPR`;
+        const value = currentValues[param.id] || param.value;
+        
+        if (param.type === 'select') {
+            return `
+                <div class="input-group" data-param-id="${param.id}">
+                    <label for="${param.id}">${param.label}</label>
+                    <select id="${param.id}">
+                        ${param.options.map(opt => 
+                            `<option value="${opt.value}" ${opt.value === value ? 'selected' : ''}>${opt.label}</option>`
+                        ).join('')}
+                    </select>
+                </div>
+            `;
         } else {
-            details += ` | Ø${tool.toolDiameter}" | ${tool.numFlutes} flutes`;
+            return `
+                <div class="input-group" data-param-id="${param.id}">
+                    <label for="${param.id}">${param.label}</label>
+                    <input type="${param.type}" id="${param.id}" value="${value}" step="${param.step || 0.001}">
+                </div>
+            `;
         }
-
-        return `
-            <div class="tool-item">
-                <div>
-                    <h4>${machineIcon} ${tool.name}</h4>
-                    <p>${details}</p>
-                    <p>SFM: ${tool.sfm} | DOC: ${tool.depthOfCut}" | WOC: ${tool.widthOfCut}"</p>
-                </div>
-                <div class="tool-actions">
-                    <button class="btn-small btn-load" onclick="loadTool(${tool.id})">Load</button>
-                    <button class="btn-small btn-delete" onclick="deleteTool(${tool.id})">Delete</button>
-                </div>
-            </div>
-        `;
     }).join('');
-}
-
-function formatMaterialName(material) {
-    return material.split('_').map(word => 
-        word.charAt(0).toUpperCase() + word.slice(1)
-    ).join(' ');
-}
-
-function loadTool(id) {
-    const tool = customLibrary.find(t => t.id === id);
-    if (!tool) return;
-
-    // Switch to correct machine type
-    currentMachineType = tool.machineType;
-    document.querySelectorAll('.machine-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.type === tool.machineType);
+    
+    // Add input listeners
+    container.querySelectorAll('input, select').forEach(input => {
+        input.addEventListener('input', () => {
+            renderParameters(); // Re-render for conditional fields
+            drawPreview();
+        });
     });
-    updateUIForMachineType();
+}
 
-    // Load values
-    document.getElementById('toolMaterial').value = tool.toolMaterial;
-    document.getElementById('workMaterial').value = tool.workMaterial;
-    document.getElementById('sfm').value = tool.sfm;
-    document.getElementById('depthOfCut').value = tool.depthOfCut;
-    document.getElementById('widthOfCut').value = tool.widthOfCut;
+function getParameterValues() {
+    const params = operationParameters[currentOperation];
+    const values = {};
+    
+    params.forEach(param => {
+        const element = document.getElementById(param.id);
+        if (element) {
+            values[param.id] = param.type === 'number' ? parseFloat(element.value) : element.value;
+        }
+    });
+    
+    return values;
+}
 
-    if (tool.machineType === 'lathe') {
-        document.getElementById('workDiameter').value = tool.workDiameter;
-        document.getElementById('feedPerRev').value = tool.feedPerRev;
+// Tool Compensation Helper Functions
+function calculateBallMillOffset(ballRadius, depth) {
+    // For ball mills, calculate effective radius at given depth
+    // Using Pythagorean theorem
+    if (depth >= ballRadius) {
+        return ballRadius; // Full tool engaged
+    }
+    const effectiveRadius = Math.sqrt(Math.pow(ballRadius, 2) - Math.pow(ballRadius - depth, 2));
+    return effectiveRadius;
+}
+
+function calculateBallMillDepthAdjustment(ballRadius, targetDepth, radialOffset) {
+    // Calculate Z depth adjustment for ball mills
+    if (targetDepth >= ballRadius) {
+        return targetDepth;
+    }
+    const zAdjust = ballRadius - Math.sqrt(Math.pow(ballRadius, 2) - Math.pow(radialOffset, 2));
+    return targetDepth + zAdjust;
+}
+
+function getToolCompensation(params) {
+    const toolType = params.toolType || 'flat';
+    const toolRadius = params.toolDiameter / 2;
+    const cornerRadius = params.cornerRadius || toolRadius;
+    
+    let offset = toolRadius;
+    let depthAdjustment = 0;
+    let useGCode = params.useCompensation === 'yes';
+    
+    if (toolType === 'ball') {
+        const ballRadius = cornerRadius;
+        if (params.totalDepth && params.totalDepth <= ballRadius) {
+            offset = calculateBallMillOffset(ballRadius, params.totalDepth);
+            depthAdjustment = calculateBallMillDepthAdjustment(ballRadius, params.totalDepth, offset);
+        }
+    }
+    
+    return { offset, depthAdjustment, useGCode, cornerRadius, toolType };
+}
+
+// G-Code Generation
+function generateGCode() {
+    const params = getParameterValues();
+    let gcode = '';
+    
+    gcode += `(Generated by G-Code Generator)\n`;
+    gcode += `(Operation: ${currentOperation.toUpperCase().replace('-', ' ')})\n`;
+    gcode += `(Date: ${new Date().toLocaleString()})\n`;
+    
+    if (params.toolType) {
+        gcode += `(Tool Type: ${params.toolType.toUpperCase()})\n`;
+        if (params.toolType === 'ball' || params.toolType === 'corner') {
+            gcode += `(Tool Radius: ${(params.cornerRadius || params.toolDiameter/2).toFixed(4)}")\n`;
+        }
+    }
+    if (params.useCompensation) {
+        gcode += `(Compensation: ${params.useCompensation === 'yes' ? 'G41/G42 ENABLED' : 'MANUAL OFFSET'})\n`;
+    }
+    gcode += `\n`;
+    
+    if (currentMachine === 'mill') {
+        gcode += generateMillGCode(params);
     } else {
-        document.getElementById('toolDiameter').value = tool.toolDiameter;
-        document.getElementById('numFlutes').value = tool.numFlutes;
-        document.getElementById('chipLoad').value = tool.chipLoad;
+        gcode += generateLatheGCode(params);
     }
-
-    // Scroll to top
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
+    generatedGCode = gcode;
+    document.getElementById('gcodeDisplay').textContent = gcode;
+    updateStats();
 }
 
-function deleteTool(id) {
-    if (confirm('Are you sure you want to delete this tool?')) {
-        customLibrary = customLibrary.filter(t => t.id !== id);
-        saveCustomLibrary();
-        renderCustomLibrary();
+function generateMillGCode(params) {
+    let gcode = '';
+    gcode += `G90 G54 G17\n`;
+    gcode += `M03 S${params.rpm}\n`;
+    gcode += `G00 Z0.5\n\n`;
+    
+    switch(currentOperation) {
+        case 'circle-pocket':
+            gcode += generateCirclePocket(params);
+            break;
+        case 'circle-profile':
+            gcode += generateCircleProfile(params);
+            break;
+        case 'rectangle-pocket':
+            gcode += generateRectanglePocket(params);
+            break;
+        case 'rectangle-profile':
+            gcode += generateRectangleProfile(params);
+            break;
+        case 'bolt-circle':
+            gcode += generateBoltCircle(params);
+            break;
+        case 'slot':
+            gcode += generateSlot(params);
+            break;
+    }
+    
+    gcode += `\nG00 Z0.5\nM05\nM30\n%\n`;
+    return gcode;
+}
+
+function generateCirclePocket(params) {
+    let gcode = '';
+    const { diameter, totalDepth, depthPerPass, toolDiameter, feedRate, centerX, centerY } = params;
+    const comp = getToolCompensation(params);
+    const radius = diameter / 2;
+    const numPasses = Math.ceil(totalDepth / depthPerPass);
+    
+    for (let pass = 1; pass <= numPasses; pass++) {
+        let depth = Math.min(pass * depthPerPass, totalDepth);
+        if (comp.toolType === 'ball' && depth === totalDepth) {
+            depth = comp.depthAdjustment;
+        }
+        
+        gcode += `(Pass ${pass} - Depth: ${depth.toFixed(3)}")\n`;
+        gcode += `G00 X${centerX.toFixed(4)} Y${centerY.toFixed(4)}\n`;
+        gcode += `G01 Z${(-depth).toFixed(4)} F${(feedRate / 2).toFixed(1)}\n`;
+        
+        const stepOver = toolDiameter * 0.5;
+        let currentRadius = 0;
+        
+        while (currentRadius < radius - toolDiameter / 2) {
+            currentRadius += stepOver;
+            if (currentRadius > radius - toolDiameter / 2) {
+                currentRadius = radius - toolDiameter / 2;
+            }
+            gcode += `G03 X${(centerX + currentRadius).toFixed(4)} Y${centerY.toFixed(4)} I${currentRadius.toFixed(4)} J0 F${feedRate.toFixed(1)}\n`;
+        }
+        gcode += `G00 Z0.1\n\n`;
+    }
+    return gcode;
+}
+
+function generateCircleProfile(params) {
+    let gcode = '';
+    const { diameter, totalDepth, depthPerPass, side, feedRate, centerX, centerY } = params;
+    const comp = getToolCompensation(params);
+    const radius = diameter / 2;
+    const offsetSign = side === 'outside' ? 1 : -1;
+    const cutRadius = radius + (comp.offset * offsetSign);
+    const numPasses = Math.ceil(totalDepth / depthPerPass);
+    
+    for (let pass = 1; pass <= numPasses; pass++) {
+        let depth = Math.min(pass * depthPerPass, totalDepth);
+        if (comp.toolType === 'ball' && depth === totalDepth) {
+            depth = comp.depthAdjustment;
+            gcode += `(Ball mill Z adjusted to ${depth.toFixed(4)}")\n`;
+        }
+        
+        gcode += `(Pass ${pass} - Depth: ${depth.toFixed(3)}")\n`;
+        
+        if (comp.useGCode) {
+            const compCode = side === 'outside' ? 'G41' : 'G42';
+            gcode += `G00 X${(centerX + cutRadius - 0.1).toFixed(4)} Y${centerY.toFixed(4)}\n`;
+            gcode += `G01 Z${(-depth).toFixed(4)} F${(feedRate / 2).toFixed(1)}\n`;
+            gcode += `${compCode} D01\n`;
+            gcode += `G01 X${(centerX + cutRadius).toFixed(4)} F${feedRate.toFixed(1)}\n`;
+            gcode += `G03 X${(centerX + cutRadius).toFixed(4)} Y${centerY.toFixed(4)} I${(-cutRadius).toFixed(4)} J0\n`;
+            gcode += `G40\n`;
+        } else {
+            gcode += `G00 X${(centerX + cutRadius).toFixed(4)} Y${centerY.toFixed(4)}\n`;
+            gcode += `G01 Z${(-depth).toFixed(4)} F${(feedRate / 2).toFixed(1)}\n`;
+            gcode += `G03 X${(centerX + cutRadius).toFixed(4)} Y${centerY.toFixed(4)} I${(-cutRadius).toFixed(4)} J0 F${feedRate.toFixed(1)}\n`;
+        }
+        gcode += `G00 Z0.1\n\n`;
+    }
+    return gcode;
+}
+
+function generateRectanglePocket(params) {
+    let gcode = '';
+    const { length, width, totalDepth, depthPerPass, toolDiameter, feedRate, centerX, centerY } = params;
+    const numPasses = Math.ceil(totalDepth / depthPerPass);
+    
+    for (let pass = 1; pass <= numPasses; pass++) {
+        const depth = Math.min(pass * depthPerPass, totalDepth);
+        gcode += `(Pass ${pass} - Depth: ${depth.toFixed(3)}")\n`;
+        gcode += `G00 X${centerX.toFixed(4)} Y${centerY.toFixed(4)}\n`;
+        gcode += `G01 Z${(-depth).toFixed(4)} F${(feedRate / 2).toFixed(1)}\n`;
+        
+        const stepOver = toolDiameter * 0.5;
+        let currentLength = 0;
+        let currentWidth = 0;
+        
+        while (currentLength < length - toolDiameter && currentWidth < width - toolDiameter) {
+            currentLength += stepOver * 2;
+            currentWidth += stepOver * 2;
+            if (currentLength > length - toolDiameter) currentLength = length - toolDiameter;
+            if (currentWidth > width - toolDiameter) currentWidth = width - toolDiameter;
+            
+            const halfL = currentLength / 2;
+            const halfW = currentWidth / 2;
+            gcode += `G01 X${(centerX + halfL).toFixed(4)} F${feedRate.toFixed(1)}\n`;
+            gcode += `G01 Y${(centerY + halfW).toFixed(4)}\n`;
+            gcode += `G01 X${(centerX - halfL).toFixed(4)}\n`;
+            gcode += `G01 Y${(centerY - halfW).toFixed(4)}\n`;
+            gcode += `G01 X${(centerX + halfL).toFixed(4)}\n`;
+        }
+        gcode += `G00 Z0.1\n\n`;
+    }
+    return gcode;
+}
+
+function generateRectangleProfile(params) {
+    let gcode = '';
+    const { length, width, totalDepth, depthPerPass, side, feedRate, centerX, centerY } = params;
+    const comp = getToolCompensation(params);
+    const offset = side === 'outside' ? comp.offset : -comp.offset;
+    const cutLength = length + (offset * 2);
+    const cutWidth = width + (offset * 2);
+    const numPasses = Math.ceil(totalDepth / depthPerPass);
+    
+    for (let pass = 1; pass <= numPasses; pass++) {
+        const depth = Math.min(pass * depthPerPass, totalDepth);
+        gcode += `(Pass ${pass} - Depth: ${depth.toFixed(3)}")\n`;
+        
+        const halfL = cutLength / 2;
+        const halfW = cutWidth / 2;
+        
+        if (comp.useGCode) {
+            const compCode = side === 'outside' ? 'G41' : 'G42';
+            gcode += `G00 X${(centerX - halfL - 0.1).toFixed(4)} Y${(centerY - halfW).toFixed(4)}\n`;
+            gcode += `G01 Z${(-depth).toFixed(4)} F${(feedRate / 2).toFixed(1)}\n`;
+            gcode += `${compCode} D01\n`;
+            gcode += `G01 X${(centerX - halfL).toFixed(4)} F${feedRate.toFixed(1)}\n`;
+            gcode += `G01 X${(centerX + halfL).toFixed(4)}\n`;
+            gcode += `G01 Y${(centerY + halfW).toFixed(4)}\n`;
+            gcode += `G01 X${(centerX - halfL).toFixed(4)}\n`;
+            gcode += `G01 Y${(centerY - halfW).toFixed(4)}\n`;
+            gcode += `G40\n`;
+        } else {
+            gcode += `G00 X${(centerX - halfL).toFixed(4)} Y${(centerY - halfW).toFixed(4)}\n`;
+            gcode += `G01 Z${(-depth).toFixed(4)} F${(feedRate / 2).toFixed(1)}\n`;
+            gcode += `G01 X${(centerX + halfL).toFixed(4)} F${feedRate.toFixed(1)}\n`;
+            gcode += `G01 Y${(centerY + halfW).toFixed(4)}\n`;
+            gcode += `G01 X${(centerX - halfL).toFixed(4)}\n`;
+            gcode += `G01 Y${(centerY - halfW).toFixed(4)}\n`;
+        }
+        gcode += `G00 Z0.1\n\n`;
+    }
+    return gcode;
+}
+
+function generateBoltCircle(params) {
+    let gcode = '';
+    const { boltCircleDia, numHoles, startAngle, totalDepth, peckDepth, feedRate, centerX, centerY } = params;
+    const radius = boltCircleDia / 2;
+    const angleStep = 360 / numHoles;
+    
+    for (let i = 0; i < numHoles; i++) {
+        const angle = (startAngle + (i * angleStep)) * Math.PI / 180;
+        const x = centerX + radius * Math.cos(angle);
+        const y = centerY + radius * Math.sin(angle);
+        gcode += `(Hole ${i + 1})\n`;
+        gcode += `G00 X${x.toFixed(4)} Y${y.toFixed(4)}\nG00 Z0.1\n`;
+        gcode += `G83 Z${(-totalDepth).toFixed(4)} R0.1 Q${peckDepth.toFixed(4)} F${feedRate.toFixed(1)}\n`;
+        gcode += `G00 Z0.5\n\n`;
+    }
+    return gcode;
+}
+
+function generateSlot(params) {
+    let gcode = '';
+    const { length, width, totalDepth, depthPerPass, feedRate, centerX, centerY } = params;
+    const endRadius = width / 2;
+    const straightLength = length - width;
+    const numPasses = Math.ceil(totalDepth / depthPerPass);
+    
+    for (let pass = 1; pass <= numPasses; pass++) {
+        const depth = Math.min(pass * depthPerPass, totalDepth);
+        gcode += `(Pass ${pass})\n`;
+        const x1 = centerX - straightLength / 2;
+        const x2 = centerX + straightLength / 2;
+        gcode += `G00 X${x1.toFixed(4)} Y${centerY.toFixed(4)}\n`;
+        gcode += `G01 Z${(-depth).toFixed(4)} F${(feedRate / 2).toFixed(1)}\n`;
+        gcode += `G03 X${x2.toFixed(4)} Y${(centerY + endRadius).toFixed(4)} I${(straightLength/2).toFixed(4)} J${endRadius.toFixed(4)} F${feedRate.toFixed(1)}\n`;
+        gcode += `G03 X${x1.toFixed(4)} Y${centerY.toFixed(4)} I${(-straightLength/2).toFixed(4)} J${(-endRadius).toFixed(4)}\n`;
+        gcode += `G00 Z0.1\n\n`;
+    }
+    return gcode;
+}
+
+function generateLatheGCode(params) {
+    let gcode = '';
+    gcode += `G90 G54 G18\n`;
+    gcode += `M03 S${params.rpm}\n`;
+    gcode += `G00 X3.0 Z0.5\n\n`;
+    
+    if (params.noseRadius && params.useCompensation === 'yes') {
+        gcode += `(Tool Nose Radius: ${params.noseRadius.toFixed(4)}")\n`;
+        gcode += `(Compensation ENABLED)\n\n`;
+    }
+    
+    switch(currentOperation) {
+        case 'face':
+            gcode += generateFace(params);
+            break;
+        case 'turn-od':
+            gcode += generateTurnOD(params);
+            break;
+        case 'groove':
+            gcode += generateGroove(params);
+            break;
+        case 'counterbore':
+            gcode += generateCounterbore(params);
+            break;
+        case 'thread':
+            gcode += generateThread(params);
+            break;
+    }
+    
+    gcode += `\nG00 X3.0 Z0.5\nM05\nM30\n%\n`;
+    return gcode;
+}
+
+function generateFace(params) {
+    let gcode = '';
+    const { diameter, totalDepth, depthPerPass, feedRate, useCompensation } = params;
+    const numPasses = Math.ceil(totalDepth / depthPerPass);
+    
+    for (let pass = 1; pass <= numPasses; pass++) {
+        const depth = Math.min(pass * depthPerPass, totalDepth);
+        gcode += `(Pass ${pass})\n`;
+        gcode += `G00 X${(diameter + 0.1).toFixed(4)} Z${(-depth).toFixed(4)}\n`;
+        if (useCompensation === 'yes') gcode += `G42 D01\n`;
+        gcode += `G01 X-0.050 F${feedRate.toFixed(3)}\n`;
+        if (useCompensation === 'yes') gcode += `G40\n`;
+        gcode += `G00 Z0.1\n\n`;
+    }
+    return gcode;
+}
+
+function generateTurnOD(params) {
+    let gcode = '';
+    const { startDiameter, endDiameter, length, depthPerPass, feedRate, useCompensation } = params;
+    const totalStock = (startDiameter - endDiameter) / 2;
+    const numPasses = Math.ceil(totalStock / depthPerPass);
+    
+    for (let pass = 1; pass <= numPasses; pass++) {
+        const currentDia = startDiameter - (Math.min(pass * depthPerPass, totalStock) * 2);
+        gcode += `(Pass ${pass} - Dia: ${currentDia.toFixed(4)}")\n`;
+        gcode += `G00 X${(currentDia + 0.1).toFixed(4)} Z0.1\n`;
+        if (useCompensation === 'yes') gcode += `G42 D01\n`;
+        gcode += `G01 X${currentDia.toFixed(4)}\n`;
+        gcode += `G01 Z${(-length).toFixed(4)} F${feedRate.toFixed(3)}\n`;
+        if (useCompensation === 'yes') gcode += `G40\n`;
+        gcode += `G00 X${(startDiameter + 0.5).toFixed(4)}\nG00 Z0.1\n\n`;
+    }
+    return gcode;
+}
+
+function generateGroove(params) {
+    let gcode = '';
+    const { diameter, grooveWidth, grooveDepth, zPosition, feedRate } = params;
+    const finalDia = diameter - (grooveDepth * 2);
+    gcode += `G00 X${(diameter + 0.1).toFixed(4)} Z${(zPosition + 0.1).toFixed(4)}\n`;
+    gcode += `G01 Z${zPosition.toFixed(4)} F${feedRate.toFixed(3)}\n`;
+    gcode += `G01 X${finalDia.toFixed(4)}\n`;
+    gcode += `G01 Z${(zPosition - grooveWidth).toFixed(4)}\n`;
+    gcode += `G01 X${diameter.toFixed(4)}\n`;
+    gcode += `G00 Z${(zPosition + 0.1).toFixed(4)}\n`;
+    return gcode;
+}
+
+function generateCounterbore(params) {
+    let gcode = '';
+    const { boreDiameter, boreDepth, depthPerPass, feedRate, useCompensation } = params;
+    const numPasses = Math.ceil(boreDepth / depthPerPass);
+    
+    for (let pass = 1; pass <= numPasses; pass++) {
+        const depth = Math.min(pass * depthPerPass, boreDepth);
+        gcode += `(Pass ${pass})\n`;
+        gcode += `G00 X${(boreDiameter - 0.1).toFixed(4)} Z0.1\n`;
+        if (useCompensation === 'yes') gcode += `G41 D01\n`;
+        gcode += `G01 Z${(-depth).toFixed(4)} F${feedRate.toFixed(3)}\n`;
+        gcode += `G01 X${(boreDiameter + 0.1).toFixed(4)}\n`;
+        if (useCompensation === 'yes') gcode += `G40\n`;
+        gcode += `G00 Z0.1\n\n`;
+    }
+    return gcode;
+}
+
+function generateThread(params) {
+    let gcode = '';
+    const { majorDiameter, tpi, threadLength } = params;
+    const pitch = 1 / tpi;
+    gcode += `G00 X${(majorDiameter + 0.1).toFixed(4)} Z0.1\n`;
+    gcode += `G76 P${(pitch * 1000).toFixed(0)} Z${(-threadLength).toFixed(4)} I-${((majorDiameter - (0.649519 / tpi)) / 2).toFixed(4)} J${(pitch * 0.25).toFixed(4)} K${(pitch * 0.05).toFixed(4)} Q${(pitch * 0.2).toFixed(4)} R${(pitch * 0.05).toFixed(4)}\n`;
+    return gcode;
+}
+
+// Preview Drawing
+function drawPreview() {
+    const canvas = document.getElementById('previewCanvas');
+    const ctx = canvas.getContext('2d');
+    const params = getParameterValues();
+    
+    ctx.fillStyle = 'rgba(10, 22, 40, 0.8)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.scale(1, -1);
+    
+    ctx.strokeStyle = '#5B9EFF';
+    ctx.lineWidth = 3;
+    
+    const scale = Math.min(canvas.width, canvas.height) / 8;
+    
+    switch(currentOperation) {
+        case 'circle-pocket':
+        case 'circle-profile':
+            drawCircle(ctx, params, scale);
+            break;
+        case 'rectangle-pocket':
+        case 'rectangle-profile':
+            drawRectangle(ctx, params, scale);
+            break;
+        case 'bolt-circle':
+            drawBoltCircle(ctx, params, scale);
+            break;
+        case 'slot':
+            drawSlot(ctx, params, scale);
+            break;
+        case 'face':
+        case 'turn-od':
+        case 'groove':
+        case 'counterbore':
+        case 'thread':
+            drawLathe(ctx, params, scale);
+            break;
+    }
+    
+    ctx.restore();
+    drawAxes(ctx, canvas);
+}
+
+function drawCircle(ctx, params, scale) {
+    const radius = (params.diameter / 2) * scale;
+    const comp = getToolCompensation(params);
+    const toolRadius = (params.toolDiameter / 2) * scale;
+    
+    ctx.fillStyle = 'rgba(91, 158, 255, 0.1)';
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    
+    ctx.strokeStyle = '#00D9FF';
+    ctx.setLineDash([5, 5]);
+    
+    if (currentOperation === 'circle-pocket') {
+        const stepOver = toolRadius;
+        let currentRadius = 0;
+        while (currentRadius < radius - toolRadius) {
+            currentRadius += stepOver;
+            ctx.beginPath();
+            ctx.arc(0, 0, currentRadius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+    } else {
+        const offsetSign = params.side === 'outside' ? 1 : -1;
+        const cutRadius = radius + (comp.offset * scale * offsetSign);
+        ctx.beginPath();
+        ctx.arc(0, 0, cutRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        // Show tool position for ball/corner mills
+        if (comp.toolType === 'ball' || comp.toolType === 'corner') {
+            ctx.setLineDash([]);
+            ctx.strokeStyle = '#FFA502';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(cutRadius, 0, toolRadius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
     }
 }
 
-function exportLibrary() {
-    const dataStr = JSON.stringify(customLibrary, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
+function drawRectangle(ctx, params, scale) {
+    const length = params.length * scale;
+    const width = params.width * scale;
+    const comp = getToolCompensation(params);
+    const toolRadius = (params.toolDiameter / 2) * scale;
     
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `tool-library-${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
+    ctx.fillStyle = 'rgba(91, 158, 255, 0.1)';
+    ctx.fillRect(-length/2, -width/2, length, width);
+    ctx.strokeRect(-length/2, -width/2, length, width);
     
+    ctx.strokeStyle = '#00D9FF';
+    ctx.setLineDash([5, 5]);
+    
+    if (currentOperation === 'rectangle-pocket') {
+        const stepOver = toolRadius * 2;
+        let offset = 0;
+        while (offset < Math.min(length, width) / 2 - toolRadius) {
+            offset += stepOver;
+            const l = length - (offset * 2);
+            const w = width - (offset * 2);
+            if (l > 0 && w > 0) {
+                ctx.strokeRect(-l/2, -w/2, l, w);
+            }
+        }
+    } else {
+        const offsetSign = params.side === 'outside' ? 1 : -1;
+        const offset = comp.offset * scale * offsetSign;
+        const l = length + (offset * 2);
+        const w = width + (offset * 2);
+        ctx.strokeRect(-l/2, -w/2, l, w);
+        
+        if (comp.toolType === 'ball' || comp.toolType === 'corner') {
+            ctx.setLineDash([]);
+            ctx.strokeStyle = '#FFA502';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(l/2, -w/2, toolRadius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+    }
+}
+
+function drawBoltCircle(ctx, params, scale) {
+    const radius = (params.boltCircleDia / 2) * scale;
+    const holeRadius = (params.holeDiameter / 2) * scale;
+    
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(91, 158, 255, 0.3)';
+    const angleStep = (2 * Math.PI) / params.numHoles;
+    const startAngle = params.startAngle * Math.PI / 180;
+    
+    for (let i = 0; i < params.numHoles; i++) {
+        const angle = startAngle + (i * angleStep);
+        const x = radius * Math.cos(angle);
+        const y = radius * Math.sin(angle);
+        ctx.beginPath();
+        ctx.arc(x, y, holeRadius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    }
+}
+
+function drawSlot(ctx, params, scale) {
+    const length = params.length * scale;
+    const width = params.width * scale;
+    const radius = width / 2;
+    const straightLength = length - width;
+    
+    ctx.fillStyle = 'rgba(91, 158, 255, 0.1)';
+    ctx.beginPath();
+    ctx.arc(-straightLength/2, 0, radius, Math.PI/2, 3*Math.PI/2);
+    ctx.arc(straightLength/2, 0, radius, -Math.PI/2, Math.PI/2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+}
+
+function drawLathe(ctx, params, scale) {
+    ctx.strokeStyle = '#5B9EFF';
+    ctx.fillStyle = 'rgba(91, 158, 255, 0.1)';
+    
+    switch(currentOperation) {
+        case 'face':
+            const dia = params.diameter * scale;
+            ctx.fillRect(-150, -dia/2, 150, dia);
+            ctx.strokeRect(-150, -dia/2, 150, dia);
+            break;
+        case 'turn-od':
+            const startDia = params.startDiameter * scale;
+            const endDia = params.endDiameter * scale;
+            const len = params.length * scale;
+            ctx.beginPath();
+            ctx.moveTo(0, -startDia/2);
+            ctx.lineTo(-len, -endDia/2);
+            ctx.lineTo(-len, endDia/2);
+            ctx.lineTo(0, startDia/2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            break;
+        case 'groove':
+        case 'counterbore':
+        case 'thread':
+            const d = (params.diameter || params.boreDiameter || params.majorDiameter) * scale;
+            ctx.fillRect(-150, -d/2, 150, d);
+            ctx.strokeRect(-150, -d/2, 150, d);
+            break;
+    }
+}
+
+function drawAxes(ctx, canvas) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(91, 158, 255, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height / 2);
+    ctx.lineTo(canvas.width, canvas.height / 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2, 0);
+    ctx.lineTo(canvas.width / 2, canvas.height);
+    ctx.stroke();
+    ctx.restore();
+}
+
+// Utility Functions
+function copyToClipboard() {
+    navigator.clipboard.writeText(generatedGCode).then(() => {
+        const btn = document.getElementById('copyBtn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="icon">✓</span><span>Copied!</span>';
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+        }, 2000);
+    });
+}
+
+function downloadGCode() {
+    const blob = new Blob([generatedGCode], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentOperation}_${new Date().getTime()}.nc`;
+    a.click();
     URL.revokeObjectURL(url);
 }
 
-function importLibrary() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
+function updateStats() {
+    const lines = generatedGCode.split('\n').filter(line => line.trim() && !line.startsWith('(')).length;
+    const params = getParameterValues();
     
-    input.onchange = (e) => {
-        const file = e.target.files[0];
-        const reader = new FileReader();
-        
-        reader.onload = (event) => {
-            try {
-                const imported = JSON.parse(event.target.result);
-                if (Array.isArray(imported)) {
-                    if (confirm(`Import ${imported.length} tools? This will add to your current library.`)) {
-                        customLibrary = [...customLibrary, ...imported];
-                        saveCustomLibrary();
-                        renderCustomLibrary();
-                    }
-                } else {
-                    alert('Invalid library file format');
-                }
-            } catch (error) {
-                alert('Error reading file: ' + error.message);
-            }
-        };
-        
-        reader.readAsText(file);
-    };
+    document.getElementById('statLines').textContent = lines;
+    document.getElementById('statDepth').textContent = (params.totalDepth || params.boreDepth || 0).toFixed(3) + '"';
     
-    input.click();
-}
-
-// Chip Load Indicator
-function updateChipLoadIndicator() {
-    if (currentMachineType !== 'mill' && currentMachineType !== 'drill') return;
-
-    const chipLoad = parseFloat(document.getElementById('chipLoad').value);
-    const toolDiameter = parseFloat(document.getElementById('toolDiameter').value);
-    
-    if (!chipLoad || !toolDiameter) return;
-
-    // Determine range based on tool diameter
-    let range;
-    if (toolDiameter < 0.125) {
-        range = chipLoadRanges.small;
-    } else if (toolDiameter <= 0.5) {
-        range = chipLoadRanges.medium;
+    if (params.totalDepth && params.depthPerPass) {
+        const passes = Math.ceil(params.totalDepth / params.depthPerPass);
+        document.getElementById('statPasses').textContent = passes;
+        const minutes = Math.floor((passes * 30) / 60);
+        const seconds = (passes * 30) % 60;
+        document.getElementById('statTime').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
     } else {
-        range = chipLoadRanges.large;
+        document.getElementById('statPasses').textContent = '1';
+        document.getElementById('statTime').textContent = '0:30';
     }
-
-    const indicator = document.getElementById('chipLoadStatus');
-    const fill = indicator.querySelector('.indicator-fill');
-    const message = indicator.querySelector('.indicator-message');
-
-    // Calculate position (0-100%)
-    let position;
-    let status;
-    let messageText;
-
-    if (chipLoad < range.min) {
-        // Too light - rubbing
-        position = (chipLoad / range.min) * 25; // 0-25%
-        status = 'low';
-        messageText = '⚠️ TOO LIGHT - Risk of rubbing and work hardening';
-    } else if (chipLoad >= range.min && chipLoad <= range.optimal) {
-        // Good range - lower half
-        position = 25 + ((chipLoad - range.min) / (range.optimal - range.min)) * 25; // 25-50%
-        status = 'good';
-        messageText = '✓ GOOD - Optimal chip load range';
-    } else if (chipLoad > range.optimal && chipLoad <= range.max) {
-        // Good range - upper half
-        position = 50 + ((chipLoad - range.optimal) / (range.max - range.optimal)) * 25; // 50-75%
-        status = 'good';
-        messageText = '✓ GOOD - Optimal chip load range';
-    } else {
-        // Too heavy - risk of breakage
-        position = 75 + Math.min(((chipLoad - range.max) / range.max) * 25, 25); // 75-100%
-        status = 'high';
-        messageText = '⚠️ TOO HEAVY - Risk of tool breakage';
-    }
-
-    fill.style.width = `${position}%`;
-    message.textContent = messageText;
-    message.className = 'indicator-message status-' + status;
-}
-
-// Feed Per Rev Indicator (for Lathe)
-function updateFeedPerRevIndicator() {
-    if (currentMachineType !== 'lathe') return;
-
-    const feedPerRev = parseFloat(document.getElementById('feedPerRev').value);
-    const workMaterial = document.getElementById('workMaterial').value;
-    
-    if (!feedPerRev) return;
-
-    // Get recommended ranges from database
-    const recommended = latheFeedDatabase[workMaterial];
-    
-    // Define ranges: finishing (too light) -> roughing (good) -> too heavy
-    const ranges = {
-        min: recommended.finishing * 0.5,        // Below this is too fine
-        finishingStart: recommended.finishing,   // Start of finishing range
-        roughingStart: recommended.roughing * 0.7, // Start of roughing range  
-        optimal: recommended.roughing,           // Optimal roughing
-        max: recommended.roughing * 1.5          // Above this is too aggressive
-    };
-
-    const indicator = document.getElementById('feedPerRevStatus');
-    if (!indicator) return;
-    
-    const fill = indicator.querySelector('.indicator-fill');
-    const message = indicator.querySelector('.indicator-message');
-
-    let position;
-    let status;
-    let messageText;
-
-    if (feedPerRev < ranges.finishingStart) {
-        // Too light - excessive cycle time
-        position = (feedPerRev / ranges.finishingStart) * 25; // 0-25%
-        status = 'low';
-        messageText = '⚠️ TOO LIGHT - Very slow, excessive cycle time';
-    } else if (feedPerRev >= ranges.finishingStart && feedPerRev < ranges.roughingStart) {
-        // Finishing range
-        position = 25 + ((feedPerRev - ranges.finishingStart) / (ranges.roughingStart - ranges.finishingStart)) * 25;
-        status = 'good';
-        messageText = '✓ FINISHING - Good for smooth surface finish';
-    } else if (feedPerRev >= ranges.roughingStart && feedPerRev <= ranges.max) {
-        // Roughing range
-        position = 50 + ((feedPerRev - ranges.roughingStart) / (ranges.max - ranges.roughingStart)) * 25;
-        status = 'good';
-        messageText = '✓ ROUGHING - Good for material removal';
-    } else {
-        // Too heavy
-        position = 75 + Math.min(((feedPerRev - ranges.max) / ranges.max) * 25, 25);
-        status = 'high';
-        messageText = '⚠️ TOO HEAVY - Risk of chatter and poor finish';
-    }
-
-    fill.style.width = `${position}%`;
-    message.textContent = messageText;
-    message.className = 'indicator-message status-' + status;
-}
-
-// Update Tap Recommendations (Auto-calculates everything)
-function updateTapRecommendations() {
-    console.log('updateTapRecommendations called');
-    const tapSizeSelect = document.getElementById('tapSize');
-    if (!tapSizeSelect || !tapSizeSelect.value) {
-        console.log('No tap size selected');
-        return;
-    }
-    
-    const workMaterial = document.getElementById('workMaterial').value;
-    const tapType = document.getElementById('tapType').value;
-    const threadEngagement = parseFloat(document.getElementById('threadEngagement')?.value || 75);
-    const threadDepth = parseFloat(document.getElementById('threadDepth')?.value || 0.5);
-    
-    console.log('Tap params:', {workMaterial, tapType, threadEngagement, threadDepth});
-    
-    const [tapDiameter, tpiOrPitch] = tapSizeSelect.value.split(',').map(parseFloat);
-    
-    // Determine if metric or imperial
-    const isMetric = tpiOrPitch < 10; // Metric pitches are < 10
-    let tpi;
-    
-    if (isMetric) {
-        // Convert metric pitch to TPI: TPI = 25.4 / pitch
-        tpi = 25.4 / tpiOrPitch;
-    } else {
-        tpi = tpiOrPitch;
-    }
-    
-    // Calculate tap drill based on thread engagement percentage
-    // Formula varies based on engagement
-    let threadDepthConstant;
-    if (threadEngagement <= 50) {
-        threadDepthConstant = 1.299; // 50%
-    } else if (threadEngagement >= 100) {
-        threadDepthConstant = 0.6495; // 100%
-    } else {
-        threadDepthConstant = 0.9743; // 75% (standard)
-    }
-    
-    const tapDrill = tapDiameter - (threadDepthConstant / tpi);
-    
-    // ALWAYS use 10 IPM feed rate for tapping (safe for all materials)
-    const targetFeedRate = 10; // IPM
-    
-    // Calculate RPM from feed rate: RPM = Feed Rate × TPI
-    const rpm = Math.round(targetFeedRate * tpi);
-    
-    // Feed rate is our constant target
-    const feedRate = targetFeedRate;
-    
-    // Calculate cycle time (in and out): seconds
-    const cycleTime = ((threadDepth / feedRate) * 60 * 2).toFixed(1);
-    
-    console.log('Calculated values:', {tapDrill, rpm, feedRate, cycleTime});
-    
-    // Update recommendation display - with safety checks
-    const drillFraction = findClosestDrill(tapDrill);
-    const recTapDrill = document.getElementById('recTapDrill');
-    const recRPM = document.getElementById('recRPM');
-    const recFeedRate = document.getElementById('recFeedRate');
-    const recCycleTime = document.getElementById('recCycleTime');
-    
-    console.log('Elements found:', {recTapDrill, recRPM, recFeedRate, recCycleTime});
-    
-    if (recTapDrill) recTapDrill.textContent = `${drillFraction} (${tapDrill.toFixed(4)}")`;
-    if (recRPM) recRPM.textContent = `${rpm} RPM`;
-    if (recFeedRate) recFeedRate.textContent = `${feedRate.toFixed(2)} IPM`;
-    if (recCycleTime) recCycleTime.textContent = 'N/A';
-    
-    console.log('Updated recommendations');
-}
-
-// Helper function to find closest drill size
-function findClosestDrill(decimal) {
-    // Common tap drill sizes
-    const drillSizes = {
-        0.0595: '#53',
-        0.0635: '#52',
-        0.0670: '#51',
-        0.0700: '#50',
-        0.0730: '#49',
-        0.0760: '#48',
-        0.0785: '#47',
-        0.0810: '#46',
-        0.0890: '#43',
-        0.0935: '#42',
-        0.0960: '#41',
-        0.0980: '#40',
-        0.1015: '#38',
-        0.1040: '#37',
-        0.1065: '#36',
-        0.1094: '#35',
-        0.1130: '#33',
-        0.1160: '#32',
-        0.1285: '#30',
-        0.1360: '#29',
-        0.1405: '#28',
-        0.1470: '#26',
-        0.1495: '#25',
-        0.1520: '#24',
-        0.1570: '#23',
-        0.1610: '#21',
-        0.1660: '#20',
-        0.1695: '#18',
-        0.1730: '#17',
-        0.1770: '#16',
-        0.1800: '#15',
-        0.1850: '#14',
-        0.1890: '#13',
-        0.1910: '#12',
-        0.1960: '#11',
-        0.2010: '#7',
-        0.2040: '#6',
-        0.2055: '#5',
-        0.2090: '#4',
-        0.2130: '#3',
-        0.2188: '7/32',
-        0.2280: '#1',
-        0.2344: '15/64',
-        0.2460: 'B',
-        0.2500: '1/4',
-        0.2570: 'F',
-        0.2656: '17/64',
-        0.2720: 'I',
-        0.2810: 'J',
-        0.2812: '9/32',
-        0.2900: 'K',
-        0.2950: 'L',
-        0.2969: 'J',
-        0.3020: 'M',
-        0.3125: '5/16',
-        0.3160: 'P',
-        0.3230: 'Q',
-        0.3281: '21/64',
-        0.3320: 'Q',
-        0.3390: 'R',
-        0.3438: '11/32',
-        0.3465: 'S',
-        0.3580: 'T',
-        0.3594: '23/64',
-        0.3680: 'U',
-        0.3750: '3/8',
-        0.3770: 'V',
-        0.3860: 'W',
-        0.3906: '25/64',
-        0.3970: '25/64',
-        0.4040: 'X',
-        0.4062: '13/32',
-        0.4130: 'Y',
-        0.4219: '27/64',
-        0.4375: '7/16',
-        0.4531: '29/64',
-        0.4688: '15/32',
-        0.4844: '31/64',
-        0.5000: '1/2',
-        0.5156: '33/64',
-        0.5312: '17/32',
-        0.5469: '35/64',
-        0.5625: '9/16',
-        0.5781: '37/64',
-        0.5938: '19/32',
-        0.6094: '39/64',
-        0.6250: '5/8',
-        0.6406: '41/64',
-        0.6562: '21/32',
-        0.6719: '43/64',
-        0.6875: '11/16',
-        0.7031: '45/64',
-        0.7188: '23/32',
-        0.7344: '47/64',
-        0.7500: '3/4',
-        0.7656: '49/64',
-        0.7812: '25/32',
-        0.7969: '51/64',
-        0.8125: '13/16',
-        0.8281: '53/64',
-        0.8438: '27/32',
-        0.8594: '55/64',
-        0.8750: '7/8',
-        0.8906: '57/64',
-        0.9062: '29/32',
-        0.9219: '59/64',
-        0.9375: '15/16',
-        0.9531: '61/64',
-        0.9688: '31/32',
-        0.9844: '63/64',
-        1.0000: '1'
-    };
-
-    let closest = 0;
-    let closestName = '';
-    let minDiff = 999;
-    
-    for (const [size, name] of Object.entries(drillSizes)) {
-        const diff = Math.abs(parseFloat(size) - decimal);
-        if (diff < minDiff) {
-            minDiff = diff;
-            closest = parseFloat(size);
-            closestName = name;
-        }
-    }
-    
-    return closestName || decimal.toFixed(4) + '"';
 }
